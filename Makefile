@@ -21,12 +21,12 @@ confirm:
 ## run/api: run the cmd/api application
 .PHONY: run/api
 run/api:
-	go run ./cmd/api -db-dsn=${GREENLIGHT_DB_DSN}
+	go run ./cmd/api -db-dsn=${RELOHELPER_DB_DSN}
 
 ## db/psql: connect to the database using psql
 .PHONY: db/psql
 db/psql:
-	psql ${GREENLIGHT_DB_DSN}
+	psql ${RELOHELPER_DB_DSN}
 
 ## db/migrations/new name=$1: create a new database migration
 .PHONY: db/migrations/new
@@ -38,7 +38,7 @@ db/migrations/new:
 .PHONY: db/migrations/up
 db/migrations/up: confirm
 	@echo 'Running up migrations...'
-	migrate -path ./migrations -database ${GREENLIGHT_DB_DSN} up
+	migrate -path ./migrations -database ${RELOHELPER_DB_DSN} up
 
 # ==================================================================================== #
 # QUALITY CONTROL
@@ -68,6 +68,22 @@ audit:
 	go test -race -vet=off ./...
 
 # ==================================================================================== #
+# TESTING
+# ==================================================================================== #
+
+## test: run all tests
+.PHONY: test
+test:
+	@echo 'Running tests...'
+	go test -count=1 ./...
+
+## test/v: run all tests with verbose output and logs at debug level
+.PHONY: test/v
+test/v:
+	@echo 'Running tests (verbose)...'
+	go test -v -count=1 ./... -args -db-dsn=${RELOHELPER_TEST_DB_DSN} -env testLogs
+
+# ==================================================================================== #
 # BUILD
 # ==================================================================================== #
 
@@ -87,24 +103,17 @@ production_host_ip = '45.153.68.48'
 ## production/connect: connect to the production server
 .PHONY: production/connect
 production/connect:
-	ssh greenlight@${production_host_ip}
+	ssh relohelper@${production_host_ip}
 
 ## production/deploy/api: deploy the api to production
 .PHONY: production/deploy/api
 production/deploy/api:
-	rsync -P ./bin/api greenlight@${production_host_ip}:~
-	rsync -rP --delete ./migrations greenlight@${production_host_ip}:~
-	ssh -t greenlight@${production_host_ip} 'migrate -path ~/migrations -database $$GREENLIGHT_DB_DSN up'
-
-## production/deploy/api: deploy the api to production
-.PHONY: production/deploy/api
-production/deploy/api:
-	rsync -P ./bin/api greenlight@${production_host_ip}:~
-	rsync -rP --delete ./migrations greenlight@${production_host_ip}:~
-	rsync -P ./remote/production/api.service greenlight@${production_host_ip}:~
-	rsync -P ./remote/production/Caddyfile greenlight@${production_host_ip}:~
-	ssh -t greenlight@${production_host_ip} '\
-		migrate -path ~/migrations -database $$GREENLIGHT_DB_DSN up \
+	rsync -P ./bin/api relohelper@${production_host_ip}:~
+	rsync -rP --delete ./migrations relohelper@${production_host_ip}:~
+	rsync -P ./remote/production/api.service relohelper@${production_host_ip}:~
+	rsync -P ./remote/production/Caddyfile relohelper@${production_host_ip}:~
+	ssh -t relohelper@${production_host_ip} '\
+		migrate -path ~/migrations -database $$RELOHELPER_DB_DSN up \
 		&& sudo mv ~/api.service /etc/systemd/system/ \
 		&& sudo systemctl enable api \
 		&& sudo systemctl restart api \
