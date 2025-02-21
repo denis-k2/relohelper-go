@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 )
 
@@ -56,4 +57,37 @@ func (c CityModel) GetCityList() ([]*City, error) {
 	}
 
 	return cities, nil
+}
+
+func (c CityModel) GetCityID(id int64) (*City, error) {
+	if id < 1 {
+		return nil, ErrRecordNotFound
+	}
+
+	query := `
+        SELECT city_id, city, state_code, country_code
+		FROM city
+		WHERE city_id = $1;`
+
+	var city City
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := c.DB.QueryRowContext(ctx, query, id).Scan(
+		&city.CityID,
+		&city.City,
+		&city.StateCode,
+		&city.CountryCode,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &city, nil
 }
