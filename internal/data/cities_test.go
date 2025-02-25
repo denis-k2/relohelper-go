@@ -13,12 +13,12 @@ func TestGetCityList(t *testing.T) {
 	db := newTestDB(t)
 	models := NewModels(db)
 
-	cities, err := models.Cities.GetCityList()
+	cities, err := models.Cities.GetCityList("")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	assert.Equal(t, 534, len(cities))
+	assert.Equal(t, len(cities), 534)
 
 	stateOH := "US-OH"
 	wantCities := []City{
@@ -43,6 +43,79 @@ func TestGetCityList(t *testing.T) {
 	}
 	for _, city := range wantCities {
 		assert.DeepEqual(t, *cities[city.CityID-1], city)
+	}
+}
+
+func TestGetCityListByCountry(t *testing.T) {
+	db := newTestDB(t)
+	models := NewModels(db)
+
+	tests := []struct {
+		name        string
+		countryCode string
+		expectedCnt int
+	}{
+		{
+			name:        "Valid uppercase code (GBR)",
+			countryCode: "GBR",
+			expectedCnt: 32,
+		},
+		{
+			name:        "Valid mixed case code (Deu)",
+			countryCode: "Deu",
+			expectedCnt: 23,
+		},
+		{
+			name:        "Valid lowercase code (rus)",
+			countryCode: "arg",
+			expectedCnt: 1,
+		},
+		{
+			name:        "Nonexistent country code (XXXX)",
+			countryCode: "xxxx",
+			expectedCnt: 0,
+		},
+		{
+			name:        "Non-alphabetic code (123)",
+			countryCode: "123",
+			expectedCnt: 0,
+		},
+		{
+			name:        "Empty country code",
+			countryCode: "",
+			expectedCnt: 534,
+		},
+		{
+			name:        "Code with 1 letter (a)",
+			countryCode: "a",
+			expectedCnt: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cities, err := models.Cities.GetCityList(tt.countryCode)
+			if err != nil {
+				t.Fatal(err)
+			}
+			assert.Equal(t, len(cities), tt.expectedCnt)
+
+			if tt.expectedCnt > 0 && tt.expectedCnt < 534 {
+				// Check uniqueness of CityID.
+				idSet := make(map[int64]struct{}, len(cities))
+				for _, city := range cities {
+					idSet[city.CityID] = struct{}{}
+				}
+				assert.Equal(t, len(idSet), len(cities))
+
+				// Ensure all cities have the same CountryCode.
+				countrySet := make(map[string]struct{}, len(cities))
+				for _, city := range cities {
+					countrySet[city.CountryCode] = struct{}{}
+				}
+				assert.Equal(t, len(countrySet), 1)
+			}
+		})
 	}
 }
 

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/denis-k2/relohelper-go/internal/assert"
@@ -14,7 +16,7 @@ func TestHealthcheck(t *testing.T) {
 	defer ts.Close()
 
 	statusCode, header, body := ts.get(t, "/healthcheck")
-	assert.Equal(t, http.StatusOK, statusCode)
+	assert.Equal(t, statusCode, http.StatusOK)
 	assert.Equal(t, header.Get("content-type"), "application/json")
 
 	var got envelope
@@ -32,14 +34,14 @@ func TestCities(t *testing.T) {
 	assert.Equal(t, header.Get("content-type"), "application/json")
 
 	type citiesResponse struct {
-		Status string      `json:"status"`
-		Cities []data.City `json:"cities"`
+		Status      string      `json:"status"`
+		Cities      []data.City `json:"cities"`
+		CountryCode string      `json:"country_code"`
 	}
 
 	var got citiesResponse
 	unmarshalJSON(t, body, &got)
-	assert.Equal(t, got.Status, "available")
-	assert.Equal(t, 534, len(got.Cities))
+	assert.Equal(t, len(got.Cities), 534)
 
 	wantCities := []data.City{
 		{
@@ -63,6 +65,110 @@ func TestCities(t *testing.T) {
 	}
 	for _, city := range wantCities {
 		assert.DeepEqual(t, got.Cities[city.CityID-1], city)
+	}
+}
+
+// TestCities tests the “/cities” endpoint with query parameter.
+func TestCitiesByCountry(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	tests := []struct {
+		name         string
+		countryCode  string
+		expectedCnt  int
+		expectedCode int
+	}{
+		{
+			name:         "Valid uppercase code (USA)",
+			countryCode:  "USA",
+			expectedCnt:  58,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Valid mixed case code (cAn)",
+			countryCode:  "cAn",
+			expectedCnt:  29,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Valid lowercase code (rus)",
+			countryCode:  "rus",
+			expectedCnt:  8,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Nonexistent country code (XXX)",
+			countryCode:  "xxx",
+			expectedCnt:  0,
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Non-alphabetic code (123)",
+			countryCode:  "123",
+			expectedCnt:  0,
+			expectedCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:         "Empty country code",
+			countryCode:  "",
+			expectedCnt:  0,
+			expectedCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:         "Code with 1 letter (a)",
+			countryCode:  "a",
+			expectedCnt:  0,
+			expectedCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:         "Code with 4 letters (usaa)",
+			countryCode:  "usaa",
+			expectedCnt:  0,
+			expectedCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:         "Code with whitespace",
+			countryCode:  url.QueryEscape(" us "),
+			expectedCnt:  0,
+			expectedCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:         "Code with special characters (#$%)",
+			countryCode:  url.QueryEscape("#$%"),
+			expectedCnt:  0,
+			expectedCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:         "SQL injection attempt",
+			countryCode:  url.QueryEscape("usa'; DROP TABLE cities;--"),
+			expectedCnt:  0,
+			expectedCode: http.StatusUnprocessableEntity,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			url := fmt.Sprintf("/cities?country_code=%s", tt.countryCode)
+			statusCode, header, body := ts.get(t, url)
+			assert.Equal(t, statusCode, tt.expectedCode)
+
+			var got struct {
+				Cities      []data.City       `json:"cities"`
+				CountryCode string            `json:"country_code"`
+				Error       map[string]string `json:"error"`
+			}
+			unmarshalJSON(t, body, &got)
+			assert.Equal(t, header.Get("content-type"), "application/json")
+			assert.Equal(t, len(got.Cities), tt.expectedCnt)
+
+			if tt.expectedCode != http.StatusOK {
+				errorMsg := map[string]string{
+					"country_code": "must be exactly three English letters",
+				}
+				assert.DeepEqual(t, got.Error, errorMsg)
+			}
+		})
 	}
 }
 

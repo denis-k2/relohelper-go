@@ -18,16 +18,17 @@ type CityModel struct {
 	DB *sql.DB
 }
 
-func (c CityModel) GetCityList() ([]*City, error) {
+func (c CityModel) GetCityList(countryСode string) ([]*City, error) {
 	query := `
         SELECT city_id, city, state_code, country_code
 		FROM city
+		WHERE (LOWER(country_code) = LOWER($1) OR $1 = '')
 		ORDER BY city_id;`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := c.DB.QueryContext(ctx, query)
+	rows, err := c.DB.QueryContext(ctx, query, countryСode)
 	if err != nil {
 		return nil, err
 	}
