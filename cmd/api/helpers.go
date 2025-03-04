@@ -3,12 +3,12 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"net/url"
 	"strconv"
 
 	"github.com/julienschmidt/httprouter"
-	"maps"
 )
 
 type envelope map[string]any
@@ -30,7 +30,7 @@ func (app *application) writeJSON(w http.ResponseWriter, status int, data envelo
 		return err
 	}
 	js = append(js, '\n')
-	
+
 	maps.Copy(w.Header(), headers)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)

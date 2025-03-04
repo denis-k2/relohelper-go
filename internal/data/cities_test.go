@@ -130,18 +130,27 @@ func TestGetCityID(t *testing.T) {
 			City:        "Boston",
 			StateCode:   &stateMA,
 			CountryCode: "USA",
+			Country:     "United States of America",
 		},
 		{
 			CityID:      319,
 			City:        "Valencia",
 			StateCode:   nil,
 			CountryCode: "ESP",
+			Country:     "Spain",
 		},
 		{
 			CityID:      487,
 			City:        "Kaliningrad",
 			StateCode:   nil,
 			CountryCode: "RUS",
+			Country:     "Russian Federation",
+		},
+		{
+			CityID: 4000,
+		},
+		{
+			CityID: -5000,
 		},
 	}
 
@@ -149,9 +158,44 @@ func TestGetCityID(t *testing.T) {
 		t.Run(fmt.Sprintf("Get City id=%d", want.CityID), func(t *testing.T) {
 			city, err := models.Cities.GetCityID(want.CityID)
 			if err != nil {
-				t.Fatal(err)
+				assert.Equal(t, err, ErrRecordNotFound)
+				return
 			}
 			assert.DeepEqual(t, *city, want)
+		})
+	}
+}
+
+func TestGetNumbeoCost(t *testing.T) {
+	db := newTestDB(t)
+	models := NewModels(db)
+
+	tests := []struct {
+		name       string
+		cityID     int64
+		currency   string
+		dateLength int
+		priceItems int
+	}{
+		{"exist", 100, "USD", 10, 57},
+		{"exist", 200, "USD", 10, 57},
+		{"exist", 300, "USD", 10, 57},
+		{"exist", 400, "USD", 10, 57},
+		{"exist", 500, "USD", 10, 57},
+		{"not exist", 600, "", 0, 0},
+		{"not exist", -700, "", 0, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("Get Numbeo Cost by City id=%d (%s)", tt.cityID, tt.name), func(t *testing.T) {
+			cost, err := models.Cities.GetNumbeoCost(tt.cityID)
+			if err != nil {
+				assert.Equal(t, err, ErrRecordNotFound)
+				return
+			}
+			assert.Equal(t, cost.Currency, tt.currency)
+			assert.Equal(t, len(cost.LastUpdate), tt.dateLength)
+			assert.Equal(t, len(cost.Prices), tt.priceItems)
 		})
 	}
 }

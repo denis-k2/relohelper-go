@@ -36,6 +36,25 @@ func (app *application) GetCities(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) GetCity(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		numbeoCost    string
+		numbeoIndices string
+		avgClimate    string
+	}
+	v := validator.New()
+	qs := r.URL.Query()
+
+	input.numbeoCost = app.readString(qs, "numbeo_cost", "")
+	input.numbeoIndices = app.readString(qs, "numbeo_indices", "")
+	input.avgClimate = app.readString(qs, "avg_climate", "")
+	costEnabled := data.ValidateBoolQuery(v, input.numbeoCost)
+	indicesEnabled := data.ValidateBoolQuery(v, input.numbeoIndices)
+	climateEnabled := data.ValidateBoolQuery(v, input.avgClimate)
+	if !v.Valid() {
+		app.failedValidationResponse(w, r, v.Errors)
+		return
+	}
+
 	id, err := app.readIDParam(r)
 	if err != nil {
 		app.notFoundResponse(w, r)
@@ -51,6 +70,25 @@ func (app *application) GetCity(w http.ResponseWriter, r *http.Request) {
 			app.serverErrorResponse(w, r, err)
 		}
 		return
+	}
+
+	if costEnabled {
+		numbeoCost, err := app.models.Cities.GetNumbeoCost(id)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+		city.NumbeoCost = *numbeoCost
+	}
+
+	if indicesEnabled {
+		// TODO: Implement handling for the 'numbeo_indices' query parameter
+		app.logger.Warn("Handling 'numbeo_indices' query parameter is incomplete.")
+	}
+
+	if climateEnabled {
+		// TODO: Implement handling for the 'avg_climate' query parameter
+		app.logger.Warn("Handling 'avg_climate' query parameter is incomplete.")
 	}
 
 	env := envelope{"city": city}

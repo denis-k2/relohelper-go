@@ -184,7 +184,7 @@ func TestCityID(t *testing.T) {
 		wantBody data.City
 	}{
 		{
-			name:     "Valid ID 1",
+			name:     "Valid ID",
 			urlPath:  "/cities/15",
 			wantCode: http.StatusOK,
 			wantBody: data.City{
@@ -192,17 +192,21 @@ func TestCityID(t *testing.T) {
 				City:        "Seattle",
 				StateCode:   ptrString("US-WA"),
 				CountryCode: "USA",
+				Country:     "United States of America",
+				NumbeoCost:  data.CostDetails{},
 			},
 		},
 		{
-			name:     "Valid ID 2",
-			urlPath:  "/cities/273",
+			name:     "Valid ID with False query params",
+			urlPath:  "/cities/273?numbeo_cost=false&numbeo_indices=0&avg_climate=",
 			wantCode: http.StatusOK,
 			wantBody: data.City{
 				CityID:      273,
 				City:        "Tokyo",
 				StateCode:   nil,
 				CountryCode: "JPN",
+				Country:     "Japan",
+				NumbeoCost:  data.CostDetails{},
 			},
 		},
 		{
@@ -239,13 +243,66 @@ func TestCityID(t *testing.T) {
 			assert.Equal(t, statusCode, tt.wantCode)
 			assert.Equal(t, header.Get("content-type"), "application/json")
 
-			if tt.wantBody != (data.City{}) {
+			if tt.wantBody.CityID != 0 {
 				type cityResponse struct {
 					City data.City `json:"city"`
 				}
 				var got cityResponse
 				unmarshalJSON(t, body, &got)
 				assert.DeepEqual(t, got.City, tt.wantBody)
+			}
+		})
+	}
+}
+
+// TestCities tests the “/cities/:id” endpoint with query parameter.
+func TestCityIDandQuery(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	tests := []struct {
+		name     string
+		urlPath  string
+		wantCode int
+	}{
+		{
+			name:     "Valid query string 1",
+			urlPath:  "/cities/12?numbeo_cost=true",
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "Valid query string 2",
+			urlPath:  "/cities/123?numbeo_cost=1",
+			wantCode: http.StatusOK,
+		},
+		{
+			name:     "Unprocessable query value (123)",
+			urlPath:  "/cities/100?numbeo_cost=123",
+			wantCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:     "Unprocessable query value (abc)",
+			urlPath:  "/cities/100?numbeo_cost=abc",
+			wantCode: http.StatusUnprocessableEntity,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statusCode, header, body := ts.get(t, tt.urlPath)
+
+			assert.Equal(t, statusCode, tt.wantCode)
+			assert.Equal(t, header.Get("content-type"), "application/json")
+
+			if tt.wantCode == http.StatusOK {
+				type cityResponse struct {
+					City data.City `json:"city"`
+				}
+				var got cityResponse
+				unmarshalJSON(t, body, &got)
+				assert.Equal(t, got.City.NumbeoCost.Currency, "USD")
+				assert.Equal(t, len(got.City.NumbeoCost.LastUpdate), 10)
+				assert.Equal(t, len(got.City.NumbeoCost.Prices), 57)
 			}
 		})
 	}

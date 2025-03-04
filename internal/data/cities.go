@@ -8,10 +8,26 @@ import (
 )
 
 type City struct {
-	CityID      int64   `json:"city_id"`
-	City        string  `json:"city"`
-	StateCode   *string `json:"state_code"`
-	CountryCode string  `json:"country_code"`
+	CityID      int64       `json:"city_id"`
+	City        string      `json:"city"`
+	StateCode   *string     `json:"state_code"`
+	CountryCode string      `json:"country_code"`
+	Country     string      `json:"country,omitzero"`
+	NumbeoCost  CostDetails `json:"numbeo_cost,omitzero"`
+}
+
+type CostDetails struct {
+	Currency   string  `json:"currency"`
+	LastUpdate string  `json:"last_update"`
+	Prices     []Price `json:"prices"`
+}
+
+type Price struct {
+	Category   string   `json:"category"`
+	Param      string   `json:"param"`
+	Cost       *float64 `json:"cost"`
+	RangeLower *float64 `json:"range_lower"`
+	RangeUpper *float64 `json:"range_upper"`
 }
 
 type CityModel struct {
@@ -66,9 +82,10 @@ func (c CityModel) GetCityID(id int64) (*City, error) {
 	}
 
 	query := `
-        SELECT city_id, city, state_code, country_code
-		FROM city
-		WHERE city_id = $1;`
+        SELECT c.city_id , c.city, c.state_code , c.country_code, ctr.country
+		FROM city c
+		JOIN country ctr on c.country_code = ctr.country_code
+		WHERE c.city_id = $1;`
 
 	var city City
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -79,6 +96,7 @@ func (c CityModel) GetCityID(id int64) (*City, error) {
 		&city.City,
 		&city.StateCode,
 		&city.CountryCode,
+		&city.Country,
 	)
 
 	if err != nil {
@@ -91,4 +109,62 @@ func (c CityModel) GetCityID(id int64) (*City, error) {
 	}
 
 	return &city, nil
+}
+
+func (c CityModel) GetNumbeoCost(id int64) (*CostDetails, error) {
+	if id < 1 {
+		return nil, ErrRecordNotFound
+	}
+
+	query := `
+		SELECT 
+        	nc.category,
+        	np.param,
+        	ns.cost,
+        	lower(ns.range) AS lower_bound,
+			upper(ns.range) AS upper_bound,
+			ns.currency,
+        	to_char(ns.updated_date, 'YYYY-MM-DD')
+		FROM numbeo_stat ns 
+		JOIN numbeo_param np ON ns.param_id = np.param_id
+		JOIN numbeo_category nc ON np.category_id = nc.category_id
+		WHERE ns.city_id = $1;`
+
+	var cost CostDetails
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rows, err := c.DB.QueryContext(ctx, query, id)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		var price Price
+		err := rows.Scan(
+			&price.Category,
+			&price.Param,
+			&price.Cost,
+			&price.RangeLower,
+			&price.RangeUpper,
+			&cost.Currency,
+			&cost.LastUpdate,
+		)
+		if err != nil {
+			return nil, err
+		}
+		cost.Prices = append(cost.Prices, price)
+	}
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &cost, nil
 }
