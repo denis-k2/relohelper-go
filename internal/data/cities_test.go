@@ -2,6 +2,7 @@ package data
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	_ "github.com/lib/pq"
@@ -196,6 +197,42 @@ func TestGetNumbeoCost(t *testing.T) {
 			assert.Equal(t, cost.Currency, tt.currency)
 			assert.Equal(t, len(cost.LastUpdate), tt.dateLength)
 			assert.Equal(t, len(cost.Prices), tt.priceItems)
+		})
+	}
+}
+
+func TestGetNumbeoIndicies(t *testing.T) {
+	db := newTestDB(t)
+	models := NewModels(db)
+
+	tests := []struct {
+		name       string
+		cityID     int64
+		itemsCount int
+		dateLength int
+		valueFloat float64
+		valueNil   *float64
+	}{
+		{"exist", 100, 13, 10, 71.7, nil},
+		{"exist", 200, 13, 10, 64.8, nil},
+		{"exist", 300, 13, 10, 51.8, nil},
+		{"exist", 400, 13, 10, 39.1, nil},
+		{"exist", 500, 13, 10, 28.9, nil},
+		{"not exist", 600, 0, 0, 0, nil},
+		{"not exist", -700, 0, 0, 0, nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("Get Numbeo Indicies by City id=%d (%s)", tt.cityID, tt.name), func(t *testing.T) {
+			index, err := models.Cities.GetNumbeoIndicies(tt.cityID)
+			if err != nil {
+				assert.Equal(t, err, ErrRecordNotFound)
+				return
+			}
+			assert.Equal(t, len(index.LastUpdate), tt.dateLength)
+			assert.Equal(t, reflect.TypeOf(Indices{}).NumField(), tt.itemsCount)
+			assert.Equal(t, *index.CostOfLiving, tt.valueFloat)
+			assert.Equal(t, index.QualityOfLife, tt.valueNil)
 		})
 	}
 }

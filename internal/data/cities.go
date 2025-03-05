@@ -8,12 +8,13 @@ import (
 )
 
 type City struct {
-	CityID      int64       `json:"city_id"`
-	City        string      `json:"city"`
-	StateCode   *string     `json:"state_code"`
-	CountryCode string      `json:"country_code"`
-	Country     string      `json:"country,omitzero"`
-	NumbeoCost  CostDetails `json:"numbeo_cost,omitzero"`
+	CityID        int64       `json:"city_id"`
+	City          string      `json:"city"`
+	StateCode     *string     `json:"state_code"`
+	CountryCode   string      `json:"country_code"`
+	Country       string      `json:"country,omitzero"`
+	NumbeoCost    CostDetails `json:"numbeo_cost,omitzero"`
+	NumbeoIndices Indices     `json:"numbeo_indices,omitzero"`
 }
 
 type CostDetails struct {
@@ -28,6 +29,22 @@ type Price struct {
 	Cost       *float64 `json:"cost"`
 	RangeLower *float64 `json:"range_lower"`
 	RangeUpper *float64 `json:"range_upper"`
+}
+
+type Indices struct {
+	CostOfLiving               *float64 `json:"cost_of_living"`
+	Rent                       *float64 `json:"rent"`
+	CostOfLivingPlusRent       *float64 `json:"cost_of_living_plus_rent"`
+	Groceries                  *float64 `json:"groceries"`
+	LocalPurchasingPower       *float64 `json:"local_purchasing_power"`
+	QualityOfLife              *float64 `json:"quality_of_life"`
+	PropertyPriceToIncomeRatio *float64 `json:"property_price_to_income_ratio"`
+	TrafficCommuteTime         *float64 `json:"traffic_commute_time"`
+	Climate                    *float64 `json:"climate"`
+	Safety                     *float64 `json:"safety"`
+	HealthCare                 *float64 `json:"health_care"`
+	Pollution                  *float64 `json:"pollution"`
+	LastUpdate                 string   `json:"last_update"`
 }
 
 type CityModel struct {
@@ -167,4 +184,60 @@ func (c CityModel) GetNumbeoCost(id int64) (*CostDetails, error) {
 	}
 
 	return &cost, nil
+}
+
+func (c CityModel) GetNumbeoIndicies(id int64) (*Indices, error) {
+	if id < 1 {
+		return nil, ErrRecordNotFound
+	}
+
+	query := `
+		SELECT
+			cost_of_living,
+			rent,
+			cost_of_living_plus_rent,
+			groceries,
+			local_purchasing_power,
+			quality_of_life,
+			property_price_to_income_ratio,
+			traffic_commute_time,
+			climate,
+			safety,
+			health_care,
+			pollution,
+			to_char(sys_updated_date, 'YYYY-MM-DD')
+		FROM public.numbeo_index_by_city
+		WHERE city_id = $1;`
+
+	var index Indices
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := c.DB.QueryRowContext(ctx, query, id).Scan(
+		&index.CostOfLiving,
+		&index.Rent,
+		&index.CostOfLivingPlusRent,
+		&index.Groceries,
+		&index.LocalPurchasingPower,
+		&index.QualityOfLife,
+		&index.PropertyPriceToIncomeRatio,
+		&index.TrafficCommuteTime,
+		&index.Climate,
+		&index.Safety,
+		&index.HealthCare,
+		&index.Pollution,
+		&index.LastUpdate,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &index, nil
 }

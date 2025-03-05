@@ -255,25 +255,34 @@ func TestCityID(t *testing.T) {
 	}
 }
 
-// TestCities tests the “/cities/:id” endpoint with query parameter.
+// TestCities tests the “/cities/:id” endpoint with query parameters.
 func TestCityIDandQuery(t *testing.T) {
 	ts := newTestServer(testApp.routes())
 	defer ts.Close()
 
 	tests := []struct {
-		name     string
-		urlPath  string
-		wantCode int
+		name        string
+		urlPath     string
+		wantCode    int
+		queryParams QueryParams
 	}{
 		{
 			name:     "Valid query string 1",
 			urlPath:  "/cities/12?numbeo_cost=true",
 			wantCode: http.StatusOK,
+			queryParams: QueryParams{
+				costEnabled:    true,
+				indicesEnabled: false,
+			},
 		},
 		{
 			name:     "Valid query string 2",
-			urlPath:  "/cities/123?numbeo_cost=1",
+			urlPath:  "/cities/123?numbeo_cost=1&numbeo_indices=t",
 			wantCode: http.StatusOK,
+			queryParams: QueryParams{
+				costEnabled:    true,
+				indicesEnabled: true,
+			},
 		},
 		{
 			name:     "Unprocessable query value (123)",
@@ -301,8 +310,8 @@ func TestCityIDandQuery(t *testing.T) {
 				var got cityResponse
 				unmarshalJSON(t, body, &got)
 				assert.Equal(t, got.City.NumbeoCost.Currency, "USD")
-				assert.Equal(t, len(got.City.NumbeoCost.LastUpdate), 10)
 				assert.Equal(t, len(got.City.NumbeoCost.Prices), 57)
+				assert.DeepEqual(t, cityFildsToBool(got.City), tt.queryParams)
 			}
 		})
 	}

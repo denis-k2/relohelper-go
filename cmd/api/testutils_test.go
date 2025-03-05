@@ -105,3 +105,15 @@ func unmarshalJSON(t *testing.T, body []byte, gotPtr any) {
 		t.Fatalf("Unable to parse %q: %v", body, err)
 	}
 }
+
+type QueryParams struct {
+	costEnabled    bool
+	indicesEnabled bool
+}
+
+func cityFildsToBool(c data.City) QueryParams {
+	return QueryParams{
+		costEnabled:    len(c.NumbeoCost.LastUpdate) == 10,
+		indicesEnabled: len(c.NumbeoIndices.LastUpdate) == 10,
+	}
+}

@@ -82,8 +82,12 @@ func (app *application) GetCity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if indicesEnabled {
-		// TODO: Implement handling for the 'numbeo_indices' query parameter
-		app.logger.Warn("Handling 'numbeo_indices' query parameter is incomplete.")
+		numbeoIndicies, err := app.models.Cities.GetNumbeoIndicies(id)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+		city.NumbeoIndices = *numbeoIndicies
 	}
 
 	if climateEnabled {
