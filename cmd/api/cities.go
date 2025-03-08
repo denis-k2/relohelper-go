@@ -91,8 +91,12 @@ func (app *application) GetCity(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if climateEnabled {
-		// TODO: Implement handling for the 'avg_climate' query parameter
-		app.logger.Warn("Handling 'avg_climate' query parameter is incomplete.")
+		avgClimate, err := app.models.Cities.GetAvgClimatePivot(id)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+			return
+		}
+		city.AvgClimate = *avgClimate
 	}
 
 	env := envelope{"city": city}

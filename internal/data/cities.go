@@ -15,6 +15,7 @@ type City struct {
 	Country       string      `json:"country,omitzero"`
 	NumbeoCost    CostDetails `json:"numbeo_cost,omitzero"`
 	NumbeoIndices Indices     `json:"numbeo_indices,omitzero"`
+	AvgClimate    AvgClimate  `json:"avg_climate,omitzero"`
 }
 
 type CostDetails struct {
@@ -45,6 +46,60 @@ type Indices struct {
 	HealthCare                 *float64 `json:"health_care"`
 	Pollution                  *float64 `json:"pollution"`
 	LastUpdate                 string   `json:"last_update"`
+}
+
+type AvgClimate struct {
+	HighTemp     MonthlyValue      `json:"high_temp"`
+	LowTemp      MonthlyValue      `json:"low_temp"`
+	Pressure     MonthlyValue      `json:"pressure"`
+	WindSpeed    MonthlyValue      `json:"wind_speed"`
+	Humidity     MonthlyValue      `json:"humidity"`
+	Rainfall     MonthlyValue      `json:"rainfall"`
+	RainfallDays MonthlyValue      `json:"rainfall_days"`
+	Snowfall     MonthlyValue      `json:"snowfall"`
+	SnowfallDays MonthlyValue      `json:"snowfall_days"`
+	SeaTemp      MonthlyValue      `json:"sea_temp"`
+	Daylight     MonthlyValue      `json:"daylight"`
+	Sunshine     MonthlyValue      `json:"sunshine"`
+	SunshineDays MonthlyValue      `json:"sunshine_days"`
+	UVIndex      MonthlyValue      `json:"uv_index"`
+	CloudCover   MonthlyValue      `json:"cloud_cover"`
+	Visibility   MonthlyValue      `json:"visibility"`
+	Measures     map[string]string `json:"measures"`
+}
+
+type MonthlyValue struct {
+	January   *float64 `json:"january"`
+	February  *float64 `json:"february"`
+	March     *float64 `json:"march"`
+	April     *float64 `json:"april"`
+	May       *float64 `json:"may"`
+	June      *float64 `json:"june"`
+	July      *float64 `json:"july"`
+	August    *float64 `json:"august"`
+	September *float64 `json:"september"`
+	October   *float64 `json:"october"`
+	November  *float64 `json:"november"`
+	December  *float64 `json:"december"`
+}
+
+var measures = map[string]string{
+	"high_temp":     "Average high temperature, °C",
+	"low_temp":      "Average low temperature, °C",
+	"pressure":      "Average pressure, mbar",
+	"wind_speed":    "Average wind speed, km/h",
+	"humidity":      "Average humidity, %",
+	"rainfall":      "Average rainfall, mm",
+	"rainfall_days": "Average rainfall days, days",
+	"snowfall":      "Average snowfall, mm",
+	"snowfall_days": "Average snowfall days, days",
+	"sea_temp":      "Average sea temperature, °C",
+	"daylight":      "Average daylight, hours",
+	"sunshine":      "Average sunshine, hours",
+	"sunshine_days": "Average sunshine days, days",
+	"uv_index":      "Average UV index",
+	"cloud_cover":   "Average cloud cover, %",
+	"visibility":    "Average visibility, km",
 }
 
 type CityModel struct {
@@ -156,8 +211,11 @@ func (c CityModel) GetNumbeoCost(id int64) (*CostDetails, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
+	dataFound := false
 	for rows.Next() {
+		dataFound = true
 		var price Price
 		err := rows.Scan(
 			&price.Category,
@@ -174,13 +232,12 @@ func (c CityModel) GetNumbeoCost(id int64) (*CostDetails, error) {
 		cost.Prices = append(cost.Prices, price)
 	}
 
-	if err != nil {
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			return nil, ErrRecordNotFound
-		default:
-			return nil, err
-		}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if !dataFound {
+		return nil, ErrRecordNotFound
 	}
 
 	return &cost, nil
@@ -240,4 +297,111 @@ func (c CityModel) GetNumbeoIndicies(id int64) (*Indices, error) {
 	}
 
 	return &index, nil
+}
+
+func (c CityModel) GetAvgClimatePivot(id int64) (*AvgClimate, error) {
+	if id < 1 {
+		return nil, ErrRecordNotFound
+	}
+
+	query := `
+		SELECT
+			climate_param,
+			january,
+			february,
+			march,
+			april,
+			may,
+			june,
+			july,
+			august,
+			september,
+			october,
+			november,
+			december
+		FROM pivot_avg_climate
+		WHERE city_id = $1;`
+
+	var climate AvgClimate
+	climate.Measures = measures
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	rows, err := c.DB.QueryContext(ctx, query, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	dataFound := false
+	for rows.Next() {
+		dataFound = true
+		var param string
+		var monthly MonthlyValue
+
+		err := rows.Scan(
+			&param,
+			&monthly.January,
+			&monthly.February,
+			&monthly.March,
+			&monthly.April,
+			&monthly.May,
+			&monthly.June,
+			&monthly.July,
+			&monthly.August,
+			&monthly.September,
+			&monthly.October,
+			&monthly.November,
+			&monthly.December,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		switch param {
+		case "high_temp":
+			climate.HighTemp = monthly
+		case "low_temp":
+			climate.LowTemp = monthly
+		case "pressure":
+			climate.Pressure = monthly
+		case "wind_speed":
+			climate.WindSpeed = monthly
+		case "humidity":
+			climate.Humidity = monthly
+		case "rainfall":
+			climate.Rainfall = monthly
+		case "rainfall_days":
+			climate.RainfallDays = monthly
+		case "snowfall":
+			climate.Snowfall = monthly
+		case "snowfall_days":
+			climate.SnowfallDays = monthly
+		case "sea_temp":
+			climate.SeaTemp = monthly
+		case "daylight":
+			climate.Daylight = monthly
+		case "sunshine":
+			climate.Sunshine = monthly
+		case "sunshine_days":
+			climate.SunshineDays = monthly
+		case "uv_index":
+			climate.UVIndex = monthly
+		case "cloud_cover":
+			climate.CloudCover = monthly
+		case "visibility":
+			climate.Visibility = monthly
+		}
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if !dataFound {
+		return nil, ErrRecordNotFound
+	}
+
+	return &climate, nil
 }

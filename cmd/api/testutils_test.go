@@ -109,11 +109,13 @@ func unmarshalJSON(t *testing.T, body []byte, gotPtr any) {
 type QueryParams struct {
 	costEnabled    bool
 	indicesEnabled bool
+	climateEnabled bool
 }
 
 func cityFildsToBool(c data.City) QueryParams {
 	return QueryParams{
-		costEnabled:    len(c.NumbeoCost.LastUpdate) == 10,
+		costEnabled:    len(c.NumbeoCost.LastUpdate) == 10 && len(c.NumbeoCost.Prices) == 57,
 		indicesEnabled: len(c.NumbeoIndices.LastUpdate) == 10,
+		climateEnabled: c.AvgClimate.Measures != nil,
 	}
 }

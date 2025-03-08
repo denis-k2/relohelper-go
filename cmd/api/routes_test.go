@@ -184,7 +184,7 @@ func TestCityID(t *testing.T) {
 		wantBody data.City
 	}{
 		{
-			name:     "Valid ID",
+			name:     "Valid ID (No query params)",
 			urlPath:  "/cities/15",
 			wantCode: http.StatusOK,
 			wantBody: data.City{
@@ -197,8 +197,8 @@ func TestCityID(t *testing.T) {
 			},
 		},
 		{
-			name:     "Valid ID with False query params",
-			urlPath:  "/cities/273?numbeo_cost=false&numbeo_indices=0&avg_climate=",
+			name:     "Valid ID with False & extra query params",
+			urlPath:  "/cities/273?numbeo_cost=false&numbeo_indices=0&avg_climate=&extra_param=true",
 			wantCode: http.StatusOK,
 			wantBody: data.City{
 				CityID:      273,
@@ -267,21 +267,63 @@ func TestCityIDandQuery(t *testing.T) {
 		queryParams QueryParams
 	}{
 		{
-			name:     "Valid query string 1",
+			name:     "One param enabled",
 			urlPath:  "/cities/12?numbeo_cost=true",
 			wantCode: http.StatusOK,
 			queryParams: QueryParams{
 				costEnabled:    true,
 				indicesEnabled: false,
+				climateEnabled: false,
 			},
 		},
 		{
-			name:     "Valid query string 2",
-			urlPath:  "/cities/123?numbeo_cost=1&numbeo_indices=t",
+			name:     "Two params enabled",
+			urlPath:  "/cities/123?numbeo_cost=1&numbeo_indices=TRUE&avg_climate=f",
 			wantCode: http.StatusOK,
 			queryParams: QueryParams{
 				costEnabled:    true,
 				indicesEnabled: true,
+				climateEnabled: false,
+			},
+		},
+		{
+			name:     "All params enabled",
+			urlPath:  "/cities/456?numbeo_cost=t&numbeo_indices=1&avg_climate=True",
+			wantCode: http.StatusOK,
+			queryParams: QueryParams{
+				costEnabled:    true,
+				indicesEnabled: true,
+				climateEnabled: true,
+			},
+		},
+		{
+			name:     "One param with false value",
+			urlPath:  "/cities/321?numbeo_indices=0",
+			wantCode: http.StatusOK,
+			queryParams: QueryParams{
+				costEnabled:    false,
+				indicesEnabled: false,
+				climateEnabled: false,
+			},
+		},
+		{
+			name:     "Unknown params (mixed cases)",
+			urlPath:  "/cities/123?NUMBEO_COST=1&Numbeo_Indices=true&InvalidParam=TRUE",
+			wantCode: http.StatusOK,
+			queryParams: QueryParams{
+				costEnabled:    false, // Upper case parameter not recognized
+				indicesEnabled: false, // CamelCase parameter not recognized
+				climateEnabled: false,
+			},
+		},
+		{
+			name:     "Duplicate params",
+			urlPath:  "/cities/234?numbeo_cost=false&numbeo_cost=true&avg_climate=1",
+			wantCode: http.StatusOK,
+			queryParams: QueryParams{
+				costEnabled:    false,
+				indicesEnabled: false,
+				climateEnabled: true,
 			},
 		},
 		{
@@ -309,8 +351,6 @@ func TestCityIDandQuery(t *testing.T) {
 				}
 				var got cityResponse
 				unmarshalJSON(t, body, &got)
-				assert.Equal(t, got.City.NumbeoCost.Currency, "USD")
-				assert.Equal(t, len(got.City.NumbeoCost.Prices), 57)
 				assert.DeepEqual(t, cityFildsToBool(got.City), tt.queryParams)
 			}
 		})

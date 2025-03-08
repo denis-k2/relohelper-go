@@ -236,3 +236,36 @@ func TestGetNumbeoIndicies(t *testing.T) {
 		})
 	}
 }
+
+func TestGetAvgClimatePivot(t *testing.T) {
+	db := newTestDB(t)
+	models := NewModels(db)
+
+	humidityJanuaryOf11 := 74.0
+	humidityJanuaryOf444 := 78.0
+	tests := []struct {
+		name            string
+		cityID          int64
+		itemsCount      int
+		humidityJanuary *float64 // random value for testing
+	}{
+		{"exist", 11, 17, &humidityJanuaryOf11},
+		{"exist", 111, 17, nil},
+		{"exist", 333, 17, nil},
+		{"exist", 444, 17, &humidityJanuaryOf444},
+		{"not exist", 555, 0, nil},
+		{"not exist", -777, 0, nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("Get Average Climate by City id=%d (%s)", tt.cityID, tt.name), func(t *testing.T) {
+			climate, err := models.Cities.GetAvgClimatePivot(tt.cityID)
+			if err != nil {
+				assert.Equal(t, err, ErrRecordNotFound)
+				return
+			}
+			assert.Equal(t, reflect.TypeOf(AvgClimate{}).NumField(), tt.itemsCount)
+			assert.DeepEqual(t, climate.Humidity.January, tt.humidityJanuary)
+		})
+	}
+}
