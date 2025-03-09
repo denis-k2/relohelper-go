@@ -11,11 +11,13 @@ var (
 )
 
 type Models struct {
-	Cities CityModel
+	Cities    CityModel
+	Countries CountryModel
 }
 
 func NewModels(db *sql.DB) Models {
 	return Models{
-		Cities: CityModel{DB: db},
+		Cities:    CityModel{DB: db},
+		Countries: CountryModel{DB: db},
 	}
 }

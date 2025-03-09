@@ -356,3 +356,54 @@ func TestCityIDandQuery(t *testing.T) {
 		})
 	}
 }
+
+// TestCountries tests the “/countries" endpoint.
+func TestCountries(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	statusCode, header, body := ts.get(t, "/countries")
+	assert.Equal(t, statusCode, http.StatusOK)
+	assert.Equal(t, header.Get("content-type"), "application/json")
+
+	type countriesResponse struct {
+		Countries []data.Country `json:"countries"`
+	}
+
+	var got countriesResponse
+	unmarshalJSON(t, body, &got)
+	assert.Equal(t, len(got.Countries), 249)
+
+	tests := []struct {
+		index   int
+		country data.Country
+	}{
+		{
+			index: 14,
+			country: data.Country{
+				Code: "AUS",
+				Name: "Australia",
+			},
+		},
+		{
+			index: 111,
+			country: data.Country{
+				Code: "ITA",
+				Name: "Italy",
+			},
+		},
+		{
+			index: 218,
+			country: data.Country{
+				Code: "THA",
+				Name: "Thailand",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("Check country code=%s", tt.country.Code), func(t *testing.T) {
+			assert.DeepEqual(t, got.Countries[tt.index], tt.country)
+		})
+	}
+}
