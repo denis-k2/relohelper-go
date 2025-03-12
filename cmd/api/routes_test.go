@@ -407,3 +407,112 @@ func TestCountries(t *testing.T) {
 		})
 	}
 }
+
+// TestCountries tests the “/countries/:alpha3" endpoint.
+func TestCountry(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	tests := []struct {
+		name         string
+		urlPath      string
+		expectedCode int
+		country      data.Country
+	}{
+		{
+			name:         "Valid uppercase code (AUS)",
+			urlPath:      "/countries/AUS",
+			expectedCode: http.StatusOK,
+			country: data.Country{
+				Code: "AUS",
+				Name: "Australia",
+			},
+		},
+		{
+			name:         "Valid mixed case code (iTa)",
+			urlPath:      "/countries/iTa",
+			expectedCode: http.StatusOK,
+			country: data.Country{
+				Code: "ITA",
+				Name: "Italy",
+			},
+		},
+		{
+			name:         "Valid lowercase code (tha)",
+			urlPath:      "/countries/tha",
+			expectedCode: http.StatusOK,
+			country: data.Country{
+				Code: "THA",
+				Name: "Thailand",
+			},
+		},
+		{
+			name:         "Nonexistent country code (XXX)",
+			urlPath:      "/countries/XXX",
+			expectedCode: http.StatusNotFound,
+		},
+		{
+			name:         "Non-alphabetic code (123)",
+			urlPath:      "/countries/123",
+			expectedCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:         "Empty country code",
+			urlPath:      "/countries/",
+			expectedCode: http.StatusOK,
+		},
+		{
+			name:         "Code with 1 letter (a)",
+			urlPath:      "/countries/a",
+			expectedCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:         "Code with 4 letters (usaa)",
+			urlPath:      "/countries/usaa",
+			expectedCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:         "Code with whitespace",
+			urlPath:      "/countries/ us ",
+			expectedCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:         "Code with special characters (#$%)",
+			urlPath:      "/countries/" + url.QueryEscape("#$%"),
+			expectedCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:         "SQL injection attempt",
+			urlPath:      "/countries/" + url.QueryEscape("usa'; DROP TABLE cities;--"),
+			expectedCode: http.StatusUnprocessableEntity,
+		},
+	}
+
+	type countriesResponse struct {
+		Country data.Country `json:"country"`
+		Error   any          `json:"error"`
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statusCode, header, body := ts.get(t, tt.urlPath)
+			assert.Equal(t, statusCode, tt.expectedCode)
+			assert.Equal(t, header.Get("content-type"), "application/json")
+
+			var got countriesResponse
+			unmarshalJSON(t, body, &got)
+
+			assert.DeepEqual(t, got.Country, tt.country)
+
+			switch tt.expectedCode {
+			case http.StatusUnprocessableEntity:
+				expectedError := map[string]any{
+					"country_code": "must be exactly three English letters",
+				}
+				assert.DeepEqual(t, got.Error, expectedError)
+			case http.StatusNotFound:
+				assert.Equal(t, got.Error, "the requested resource could not be found")
+			}
+		})
+	}
+}

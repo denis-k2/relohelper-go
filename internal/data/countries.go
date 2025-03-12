@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 )
 
@@ -52,4 +53,31 @@ func (c CountryModel) GetCountryList() ([]*Country, error) {
 	}
 
 	return countries, nil
+}
+
+func (c CountryModel) GetCountry(countryCode string) (*Country, error) {
+	query := `
+		SELECT country_code, country
+		FROM country
+		WHERE (LOWER(country_code) = LOWER($1));`
+
+	var country Country
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	err := c.DB.QueryRowContext(ctx, query, countryCode).Scan(
+		&country.Code,
+		&country.Name,
+	)
+
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return nil, ErrRecordNotFound
+		default:
+			return nil, err
+		}
+	}
+
+	return &country, nil
 }

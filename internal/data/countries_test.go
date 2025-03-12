@@ -52,3 +52,66 @@ func TestGetCountryList(t *testing.T) {
 		})
 	}
 }
+
+func TestGetCountry(t *testing.T) {
+	db := newTestDB(t)
+	models := NewModels(db)
+
+	tests := []struct {
+		name        string
+		countryCode string
+		country     Country
+	}{
+		{
+			name:        "Valid uppercase code (AUT)",
+			countryCode: "AUT",
+			country: Country{
+				Code: "AUT",
+				Name: "Austria",
+			},
+		},
+		{
+			name:        "Valid mixed case code (Mex)",
+			countryCode: "Mex",
+			country: Country{
+				Code: "MEX",
+				Name: "Mexico",
+			},
+		},
+		{
+			name:        "Valid lowercase code (srb)",
+			countryCode: "srb",
+			country: Country{
+				Code: "SRB",
+				Name: "Serbia",
+			},
+		},
+		{
+			name:        "Nonexistent country code (XXXX)",
+			countryCode: "xxxx",
+		},
+		{
+			name:        "Non-alphabetic code (123)",
+			countryCode: "123",
+		},
+		{
+			name:        "Empty country code",
+			countryCode: "",
+		},
+		{
+			name:        "Code with 1 letter (a)",
+			countryCode: "a",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			country, err := models.Countries.GetCountry(tt.countryCode)
+			if err != nil {
+				assert.Equal(t, err, ErrRecordNotFound)
+				return
+			}
+			assert.DeepEqual(t, *country, tt.country)
+		})
+	}
+}

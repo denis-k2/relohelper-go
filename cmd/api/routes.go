@@ -14,6 +14,7 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/cities", app.GetCities)
 	router.HandlerFunc(http.MethodGet, "/cities/:id", app.GetCity)
 	router.HandlerFunc(http.MethodGet, "/countries", app.showCountriesHandler)
+	router.HandlerFunc(http.MethodGet, "/countries/:alpha3", app.showCountryHandler)
 
 	return router
 }
