@@ -408,7 +408,7 @@ func TestCountries(t *testing.T) {
 	}
 }
 
-// TestCountries tests the “/countries/:alpha3" endpoint.
+// TestCountry tests the “/countries/:alpha3" endpoint.
 func TestCountry(t *testing.T) {
 	ts := newTestServer(testApp.routes())
 	defer ts.Close()
@@ -512,6 +512,109 @@ func TestCountry(t *testing.T) {
 				assert.DeepEqual(t, got.Error, expectedError)
 			case http.StatusNotFound:
 				assert.Equal(t, got.Error, "the requested resource could not be found")
+			}
+		})
+	}
+}
+
+// TestCountryandQuery tests the “/countries/:alpha3” endpoint with query parameters.
+func TestCountryandQuery(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	tests := []struct {
+		name        string
+		urlPath     string
+		wantCode    int
+		queryParams QueryParamsCountry
+	}{
+		{
+			name:     "One param enabled",
+			urlPath:  "/countries/rus?numbeo_indices=true",
+			wantCode: http.StatusOK,
+			queryParams: QueryParamsCountry{
+				numbeoIndicesEnabled:  true,
+				legatumIndicesEnabled: false,
+			},
+		},
+		// {
+		// 	name:     "Another one param enabled",
+		// 	urlPath:  "/countries/usa?legatum_indices=TRUE",
+		// 	wantCode: http.StatusOK,
+		// 	queryParams: QueryParamsCountry{
+		// 		numbeoIndicesEnabled:  false,
+		// 		legatumIndicesEnabled: true,
+		// 	},
+		// },
+		// {
+		// 	name:     "All params enabled",
+		// 	urlPath:  "/countries/rus?numbeo_indices=1&legatum_indices=True",
+		// 	wantCode: http.StatusOK,
+		// 	queryParams: QueryParamsCountry{
+		// 		numbeoIndicesEnabled:  true,
+		// 		legatumIndicesEnabled: true,
+		// 	},
+		// },
+		{
+			name:     "One param with false value",
+			urlPath:  "/countries/can?numbeo_indices=0",
+			wantCode: http.StatusOK,
+			queryParams: QueryParamsCountry{
+				numbeoIndicesEnabled:  false,
+				legatumIndicesEnabled: false,
+			},
+		},
+		{
+			name:     "Unknown params (mixed cases)",
+			urlPath:  "/countries/arg?Numbeo_Indices=true&LEGATHUM_INDICES=1&InvalidParam=TRUE",
+			wantCode: http.StatusOK,
+			queryParams: QueryParamsCountry{
+				numbeoIndicesEnabled:  false, // CamelCase parameter not recognized
+				legatumIndicesEnabled: false, // Upper case parameter not recognized
+			},
+		},
+		{
+			name:     "Duplicate params",
+			urlPath:  "/countries/chn?numbeo_indices=false&numbeo_indices=true&legatum_indices=1",
+			wantCode: http.StatusOK,
+			queryParams: QueryParamsCountry{
+				numbeoIndicesEnabled:  false,
+				legatumIndicesEnabled: false,
+			},
+		},
+		{
+			name:     "Unprocessable query value (123)",
+			urlPath:  "/countries/deu?numbeo_indices=123",
+			wantCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:     "Unprocessable query value (abc)",
+			urlPath:  "/countries/nld?numbeo_indices=abc",
+			wantCode: http.StatusUnprocessableEntity,
+		},
+	}
+
+	type countriesResponse struct {
+		Country data.Country `json:"country"`
+		Error   any          `json:"error"`
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statusCode, header, body := ts.get(t, tt.urlPath)
+
+			assert.Equal(t, statusCode, tt.wantCode)
+			assert.Equal(t, header.Get("content-type"), "application/json")
+
+			var got countriesResponse
+			unmarshalJSON(t, body, &got)
+			assert.DeepEqual(t, countryFildsToBool(got.Country), tt.queryParams)
+
+			if tt.wantCode == http.StatusUnprocessableEntity {
+				expectedError := map[string]any{
+					"query parameter": "must be a boolean value",
+				}
+				assert.DeepEqual(t, got.Error, expectedError)
 			}
 		})
 	}

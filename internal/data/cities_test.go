@@ -230,7 +230,7 @@ func TestGetNumbeoIndicies(t *testing.T) {
 				return
 			}
 			assert.Equal(t, len(index.LastUpdate), tt.dateLength)
-			assert.Equal(t, reflect.TypeOf(Indices{}).NumField(), tt.itemsCount)
+			assert.Equal(t, reflect.TypeOf(*index).NumField(), tt.itemsCount)
 			assert.Equal(t, *index.CostOfLiving, tt.valueFloat)
 			assert.Equal(t, index.QualityOfLife, tt.valueNil)
 		})

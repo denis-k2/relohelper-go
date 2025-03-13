@@ -119,3 +119,16 @@ func cityFildsToBool(c data.City) QueryParams {
 		climateEnabled: c.AvgClimate.Measures != nil,
 	}
 }
+
+type QueryParamsCountry struct {
+	numbeoIndicesEnabled  bool
+	legatumIndicesEnabled bool
+}
+
+func countryFildsToBool(c data.Country) QueryParamsCountry {
+	return QueryParamsCountry{
+		numbeoIndicesEnabled: len(c.NumbeoIndices.LastUpdate) == 10,
+		// TODO: Implement legatum indices handling once the data source is available.
+		legatumIndicesEnabled: false,
+	}
+}

@@ -2,6 +2,7 @@ package data
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 
 	_ "github.com/lib/pq"
@@ -112,6 +113,41 @@ func TestGetCountry(t *testing.T) {
 				return
 			}
 			assert.DeepEqual(t, *country, tt.country)
+		})
+	}
+}
+
+func TestGetNumbeoCountryIndicies(t *testing.T) {
+	db := newTestDB(t)
+	models := NewModels(db)
+
+	tests := []struct {
+		name          string
+		country_code  string
+		itemsCount    int
+		dateLength    int
+		avgSalaryUSD  float64  // random float value
+		qualityOfLife *float64 // random nil value
+	}{
+		{"exist", "CRI", 15, 10, 867.19, nil},
+		{"exist", "jam", 15, 10, 663.61, nil},
+		{"exist", "mus", 15, 10, 499.8, nil},
+		{"exist", "Uzb", 15, 10, 340.5, nil},
+		{"not exist", "xxx", 0, 0, 0, nil},
+		{"not exist", "123", 0, 0, 0, nil},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("Get Numbeo Indicies by Country code=%s (%s)", tt.country_code, tt.name), func(t *testing.T) {
+			index, err := models.Countries.GetNumbeoCountryIndicies(tt.country_code)
+			if err != nil {
+				assert.Equal(t, err, ErrRecordNotFound)
+				return
+			}
+			assert.Equal(t, len(index.LastUpdate), tt.dateLength)
+			assert.Equal(t, reflect.TypeOf(*index).NumField(), tt.itemsCount)
+			assert.Equal(t, *index.AvgSalaryUSD, tt.avgSalaryUSD)
+			assert.Equal(t, index.QualityOfLife, tt.qualityOfLife)
 		})
 	}
 }
