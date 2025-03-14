@@ -127,8 +127,7 @@ type QueryParamsCountry struct {
 
 func countryFildsToBool(c data.Country) QueryParamsCountry {
 	return QueryParamsCountry{
-		numbeoIndicesEnabled: len(c.NumbeoIndices.LastUpdate) == 10,
-		// TODO: Implement legatum indices handling once the data source is available.
-		legatumIndicesEnabled: false,
+		numbeoIndicesEnabled:  c.NumbeoIndices != nil,
+		legatumIndicesEnabled: c.LegatumIndices != nil,
 	}
 }

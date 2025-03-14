@@ -56,17 +56,29 @@ func (app *application) showCountryHandler(w http.ResponseWriter, r *http.Reques
 	}
 
 	if numbeoIndicesEnabled {
-		numbeoIndicies, err := app.models.Countries.GetNumbeoCountryIndicies(input.CountryCode)
-		if err != nil {
+		numbeoIndices, err := app.models.Countries.GetNumbeoCountryIndicies(input.CountryCode)
+		switch {
+		case err == nil:
+			country.NumbeoIndices = numbeoIndices
+		case errors.Is(err, data.ErrRecordNotFound):
+			country.NumbeoIndices = nil
+		default:
 			app.serverErrorResponse(w, r, err)
 			return
 		}
-		country.NumbeoIndices = *numbeoIndicies
 	}
 
 	if legatumIndicesEnabled {
-		// TODO: Implement handling for the 'numbeo_indices' query parameter
-		app.logger.Warn("Handling 'legatum_indices' query parameter is incomplete.")
+		legatumIndices, err := app.models.Countries.GetLegatumIndicies(input.CountryCode)
+		switch {
+		case err == nil:
+			country.LegatumIndices = legatumIndices
+		case errors.Is(err, data.ErrRecordNotFound):
+			country.LegatumIndices = nil
+		default:
+			app.serverErrorResponse(w, r, err)
+			return
+		}
 	}
 
 	env := envelope{"country": country}

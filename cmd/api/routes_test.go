@@ -529,7 +529,7 @@ func TestCountryandQuery(t *testing.T) {
 		queryParams QueryParamsCountry
 	}{
 		{
-			name:     "One param enabled",
+			name:     "Enable only Numbeo indices",
 			urlPath:  "/countries/rus?numbeo_indices=true",
 			wantCode: http.StatusOK,
 			queryParams: QueryParamsCountry{
@@ -537,26 +537,44 @@ func TestCountryandQuery(t *testing.T) {
 				legatumIndicesEnabled: false,
 			},
 		},
-		// {
-		// 	name:     "Another one param enabled",
-		// 	urlPath:  "/countries/usa?legatum_indices=TRUE",
-		// 	wantCode: http.StatusOK,
-		// 	queryParams: QueryParamsCountry{
-		// 		numbeoIndicesEnabled:  false,
-		// 		legatumIndicesEnabled: true,
-		// 	},
-		// },
-		// {
-		// 	name:     "All params enabled",
-		// 	urlPath:  "/countries/rus?numbeo_indices=1&legatum_indices=True",
-		// 	wantCode: http.StatusOK,
-		// 	queryParams: QueryParamsCountry{
-		// 		numbeoIndicesEnabled:  true,
-		// 		legatumIndicesEnabled: true,
-		// 	},
-		// },
 		{
-			name:     "One param with false value",
+			name:     "Enable only Legatum indices",
+			urlPath:  "/countries/usa?legatum_indices=TRUE",
+			wantCode: http.StatusOK,
+			queryParams: QueryParamsCountry{
+				numbeoIndicesEnabled:  false,
+				legatumIndicesEnabled: true,
+			},
+		},
+		{
+			name:     "Enable all params (Numbeo and Legatum)",
+			urlPath:  "/countries/bra?numbeo_indices=1&legatum_indices=True",
+			wantCode: http.StatusOK,
+			queryParams: QueryParamsCountry{
+				numbeoIndicesEnabled:  true,
+				legatumIndicesEnabled: true,
+			},
+		},
+		{
+			name:     "Enable both params with missing Numbeo data",
+			urlPath:  "/countries/afg?numbeo_indices=t&legatum_indices=true",
+			wantCode: http.StatusOK,
+			queryParams: QueryParamsCountry{
+				numbeoIndicesEnabled:  false,
+				legatumIndicesEnabled: true,
+			},
+		},
+		{
+			name:     "Enable both params with missing both data",
+			urlPath:  "/countries/wlf?numbeo_indices=t&legatum_indices=t",
+			wantCode: http.StatusOK,
+			queryParams: QueryParamsCountry{
+				numbeoIndicesEnabled:  false,
+				legatumIndicesEnabled: false,
+			},
+		},
+		{
+			name:     "Disable only Numbeo indices",
 			urlPath:  "/countries/can?numbeo_indices=0",
 			wantCode: http.StatusOK,
 			queryParams: QueryParamsCountry{
@@ -579,7 +597,7 @@ func TestCountryandQuery(t *testing.T) {
 			wantCode: http.StatusOK,
 			queryParams: QueryParamsCountry{
 				numbeoIndicesEnabled:  false,
-				legatumIndicesEnabled: false,
+				legatumIndicesEnabled: true,
 			},
 		},
 		{
