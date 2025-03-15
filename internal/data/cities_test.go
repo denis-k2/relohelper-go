@@ -97,7 +97,8 @@ func TestGetCityListByCountry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cities, err := models.Cities.GetCityList(tt.countryCode)
 			if err != nil {
-				t.Fatal(err)
+				assert.Equal(t, err, ErrRecordNotFound)
+				return
 			}
 			assert.Equal(t, len(cities), tt.expectedCnt)
 

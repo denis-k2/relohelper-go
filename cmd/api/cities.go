@@ -23,7 +23,12 @@ func (app *application) GetCities(w http.ResponseWriter, r *http.Request) {
 
 	cities, err := app.models.Cities.GetCityList(input.CountryCode)
 	if err != nil {
-		app.serverErrorResponse(w, r, err)
+		switch {
+		case errors.Is(err, data.ErrRecordNotFound):
+			app.notFoundResponse(w, r)
+		default:
+			app.serverErrorResponse(w, r, err)
+		}
 		return
 	}
 
@@ -36,6 +41,12 @@ func (app *application) GetCities(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *application) GetCity(w http.ResponseWriter, r *http.Request) {
+	id, err := app.readIDParam(r)
+	if err != nil {
+		app.notFoundResponse(w, r)
+		return
+	}
+
 	var input struct {
 		numbeoCost    string
 		numbeoIndices string
@@ -43,7 +54,6 @@ func (app *application) GetCity(w http.ResponseWriter, r *http.Request) {
 	}
 	v := validator.New()
 	qs := r.URL.Query()
-
 	input.numbeoCost = app.readString(qs, "numbeo_cost", "")
 	input.numbeoIndices = app.readString(qs, "numbeo_indices", "")
 	input.avgClimate = app.readString(qs, "avg_climate", "")
@@ -52,12 +62,6 @@ func (app *application) GetCity(w http.ResponseWriter, r *http.Request) {
 	climateEnabled := data.ValidateBoolQuery(v, input.avgClimate)
 	if !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
-		return
-	}
-
-	id, err := app.readIDParam(r)
-	if err != nil {
-		app.notFoundResponse(w, r)
 		return
 	}
 
@@ -74,29 +78,41 @@ func (app *application) GetCity(w http.ResponseWriter, r *http.Request) {
 
 	if costEnabled {
 		numbeoCost, err := app.models.Cities.GetNumbeoCost(id)
-		if err != nil {
+		switch {
+		case err == nil:
+			city.NumbeoCost = numbeoCost
+		case errors.Is(err, data.ErrRecordNotFound):
+			city.NumbeoCost = nil
+		default:
 			app.serverErrorResponse(w, r, err)
 			return
 		}
-		city.NumbeoCost = *numbeoCost
 	}
 
 	if indicesEnabled {
 		numbeoIndicies, err := app.models.Cities.GetNumbeoIndicies(id)
-		if err != nil {
+		switch {
+		case err == nil:
+			city.NumbeoIndices = numbeoIndicies
+		case errors.Is(err, data.ErrRecordNotFound):
+			city.NumbeoIndices = nil
+		default:
 			app.serverErrorResponse(w, r, err)
 			return
 		}
-		city.NumbeoIndices = *numbeoIndicies
 	}
 
 	if climateEnabled {
 		avgClimate, err := app.models.Cities.GetAvgClimatePivot(id)
-		if err != nil {
+		switch {
+		case err == nil:
+			city.AvgClimate = avgClimate
+		case errors.Is(err, data.ErrRecordNotFound):
+			city.AvgClimate = nil
+		default:
 			app.serverErrorResponse(w, r, err)
 			return
 		}
-		city.AvgClimate = *avgClimate
 	}
 
 	env := envelope{"city": city}

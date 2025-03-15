@@ -114,9 +114,9 @@ type QueryParams struct {
 
 func cityFildsToBool(c data.City) QueryParams {
 	return QueryParams{
-		costEnabled:    len(c.NumbeoCost.LastUpdate) == 10 && len(c.NumbeoCost.Prices) == 57,
-		indicesEnabled: len(c.NumbeoIndices.LastUpdate) == 10,
-		climateEnabled: c.AvgClimate.Measures != nil,
+		costEnabled:    c.NumbeoCost != nil,
+		indicesEnabled: c.NumbeoIndices != nil,
+		climateEnabled: c.AvgClimate != nil,
 	}
 }
 

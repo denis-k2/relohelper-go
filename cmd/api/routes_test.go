@@ -100,51 +100,48 @@ func TestCitiesByCountry(t *testing.T) {
 		{
 			name:         "Nonexistent country code (XXX)",
 			countryCode:  "xxx",
-			expectedCnt:  0,
-			expectedCode: http.StatusOK,
+			expectedCode: http.StatusNotFound,
 		},
 		{
 			name:         "Non-alphabetic code (123)",
 			countryCode:  "123",
-			expectedCnt:  0,
 			expectedCode: http.StatusUnprocessableEntity,
 		},
 		{
 			name:         "Empty country code",
 			countryCode:  "",
-			expectedCnt:  0,
 			expectedCode: http.StatusUnprocessableEntity,
 		},
 		{
 			name:         "Code with 1 letter (a)",
 			countryCode:  "a",
-			expectedCnt:  0,
 			expectedCode: http.StatusUnprocessableEntity,
 		},
 		{
 			name:         "Code with 4 letters (usaa)",
 			countryCode:  "usaa",
-			expectedCnt:  0,
 			expectedCode: http.StatusUnprocessableEntity,
 		},
 		{
 			name:         "Code with whitespace",
 			countryCode:  url.QueryEscape(" us "),
-			expectedCnt:  0,
 			expectedCode: http.StatusUnprocessableEntity,
 		},
 		{
 			name:         "Code with special characters (#$%)",
 			countryCode:  url.QueryEscape("#$%"),
-			expectedCnt:  0,
 			expectedCode: http.StatusUnprocessableEntity,
 		},
 		{
 			name:         "SQL injection attempt",
 			countryCode:  url.QueryEscape("usa'; DROP TABLE cities;--"),
-			expectedCnt:  0,
 			expectedCode: http.StatusUnprocessableEntity,
 		},
+	}
+
+	type citiesResponse struct {
+		Cities []data.City `json:"cities"`
+		Error  any         `json:"error"`
 	}
 
 	for _, tt := range tests {
@@ -153,20 +150,19 @@ func TestCitiesByCountry(t *testing.T) {
 			statusCode, header, body := ts.get(t, url)
 			assert.Equal(t, statusCode, tt.expectedCode)
 
-			var got struct {
-				Cities      []data.City       `json:"cities"`
-				CountryCode string            `json:"country_code"`
-				Error       map[string]string `json:"error"`
-			}
+			var got citiesResponse
 			unmarshalJSON(t, body, &got)
 			assert.Equal(t, header.Get("content-type"), "application/json")
 			assert.Equal(t, len(got.Cities), tt.expectedCnt)
 
-			if tt.expectedCode != http.StatusOK {
-				errorMsg := map[string]string{
+			switch tt.expectedCode {
+			case http.StatusUnprocessableEntity:
+				expectedError := map[string]any{
 					"country_code": "must be exactly three English letters",
 				}
-				assert.DeepEqual(t, got.Error, errorMsg)
+				assert.DeepEqual(t, got.Error, expectedError)
+			case http.StatusNotFound:
+				assert.Equal(t, got.Error, "the requested resource could not be found")
 			}
 		})
 	}
@@ -193,7 +189,6 @@ func TestCityID(t *testing.T) {
 				StateCode:   ptrString("US-WA"),
 				CountryCode: "USA",
 				Country:     "United States of America",
-				NumbeoCost:  data.CostDetails{},
 			},
 		},
 		{
@@ -206,7 +201,6 @@ func TestCityID(t *testing.T) {
 				StateCode:   nil,
 				CountryCode: "JPN",
 				Country:     "Japan",
-				NumbeoCost:  data.CostDetails{},
 			},
 		},
 		{
@@ -236,6 +230,11 @@ func TestCityID(t *testing.T) {
 		},
 	}
 
+	type cityResponse struct {
+		City  data.City `json:"city"`
+		Error any       `json:"error"`
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			statusCode, header, body := ts.get(t, tt.urlPath)
@@ -243,13 +242,12 @@ func TestCityID(t *testing.T) {
 			assert.Equal(t, statusCode, tt.wantCode)
 			assert.Equal(t, header.Get("content-type"), "application/json")
 
-			if tt.wantBody.CityID != 0 {
-				type cityResponse struct {
-					City data.City `json:"city"`
-				}
-				var got cityResponse
-				unmarshalJSON(t, body, &got)
-				assert.DeepEqual(t, got.City, tt.wantBody)
+			var got cityResponse
+			unmarshalJSON(t, body, &got)
+			assert.DeepEqual(t, got.City, tt.wantBody)
+
+			if tt.wantCode == http.StatusNotFound {
+				assert.Equal(t, got.Error, "the requested resource could not be found")
 			}
 		})
 	}
@@ -297,6 +295,16 @@ func TestCityIDandQuery(t *testing.T) {
 			},
 		},
 		{
+			name:     "Enable both params with missing Avg Climate data",
+			urlPath:  "/cities/329?numbeo_cost=t&numbeo_indices=1&avg_climate=t",
+			wantCode: http.StatusOK,
+			queryParams: QueryParams{
+				costEnabled:    true,
+				indicesEnabled: true,
+				climateEnabled: false,
+			},
+		},
+		{
 			name:     "One param with false value",
 			urlPath:  "/cities/321?numbeo_indices=0",
 			wantCode: http.StatusOK,
@@ -338,6 +346,11 @@ func TestCityIDandQuery(t *testing.T) {
 		},
 	}
 
+	type cityResponse struct {
+		City  data.City `json:"city"`
+		Error any       `json:"error"`
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			statusCode, header, body := ts.get(t, tt.urlPath)
@@ -345,13 +358,15 @@ func TestCityIDandQuery(t *testing.T) {
 			assert.Equal(t, statusCode, tt.wantCode)
 			assert.Equal(t, header.Get("content-type"), "application/json")
 
-			if tt.wantCode == http.StatusOK {
-				type cityResponse struct {
-					City data.City `json:"city"`
+			var got cityResponse
+			unmarshalJSON(t, body, &got)
+			assert.DeepEqual(t, cityFildsToBool(got.City), tt.queryParams)
+
+			if tt.wantCode == http.StatusUnprocessableEntity {
+				expectedError := map[string]any{
+					"query parameter": "must be a boolean value",
 				}
-				var got cityResponse
-				unmarshalJSON(t, body, &got)
-				assert.DeepEqual(t, cityFildsToBool(got.City), tt.queryParams)
+				assert.DeepEqual(t, got.Error, expectedError)
 			}
 		})
 	}

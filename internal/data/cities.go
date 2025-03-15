@@ -8,14 +8,14 @@ import (
 )
 
 type City struct {
-	CityID        int64       `json:"city_id"`
-	City          string      `json:"city"`
-	StateCode     *string     `json:"state_code"`
-	CountryCode   string      `json:"country_code"`
-	Country       string      `json:"country,omitzero"`
-	NumbeoCost    CostDetails `json:"numbeo_cost,omitzero"`
-	NumbeoIndices Indices     `json:"numbeo_indices,omitzero"`
-	AvgClimate    AvgClimate  `json:"avg_climate,omitzero"`
+	CityID        int64        `json:"city_id"`
+	City          string       `json:"city"`
+	StateCode     *string      `json:"state_code"`
+	CountryCode   string       `json:"country_code"`
+	Country       string       `json:"country,omitzero"`
+	NumbeoCost    *CostDetails `json:"numbeo_cost,omitzero"`
+	NumbeoIndices *Indices     `json:"numbeo_indices,omitzero"`
+	AvgClimate    *AvgClimate  `json:"avg_climate,omitzero"`
 }
 
 type CostDetails struct {
@@ -124,7 +124,9 @@ func (c CityModel) GetCityList(countryСode string) ([]*City, error) {
 
 	cities := []*City{}
 
+	dataFound := false
 	for rows.Next() {
+		dataFound = true
 		var city City
 
 		err := rows.Scan(
@@ -143,6 +145,10 @@ func (c CityModel) GetCityList(countryСode string) ([]*City, error) {
 
 	if err = rows.Err(); err != nil {
 		return nil, err
+	}
+
+	if !dataFound {
+		return nil, ErrRecordNotFound
 	}
 
 	return cities, nil
