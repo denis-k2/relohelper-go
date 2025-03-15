@@ -33,13 +33,7 @@ func TestCities(t *testing.T) {
 	assert.Equal(t, statusCode, http.StatusOK)
 	assert.Equal(t, header.Get("content-type"), "application/json")
 
-	type citiesResponse struct {
-		Status      string      `json:"status"`
-		Cities      []data.City `json:"cities"`
-		CountryCode string      `json:"country_code"`
-	}
-
-	var got citiesResponse
+	var got gotResponse
 	unmarshalJSON(t, body, &got)
 	assert.Equal(t, len(got.Cities), 534)
 
@@ -139,18 +133,13 @@ func TestCitiesByCountry(t *testing.T) {
 		},
 	}
 
-	type citiesResponse struct {
-		Cities []data.City `json:"cities"`
-		Error  any         `json:"error"`
-	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			url := fmt.Sprintf("/cities?country_code=%s", tt.countryCode)
 			statusCode, header, body := ts.get(t, url)
 			assert.Equal(t, statusCode, tt.expectedCode)
 
-			var got citiesResponse
+			var got gotResponse
 			unmarshalJSON(t, body, &got)
 			assert.Equal(t, header.Get("content-type"), "application/json")
 			assert.Equal(t, len(got.Cities), tt.expectedCnt)
@@ -230,19 +219,13 @@ func TestCityID(t *testing.T) {
 		},
 	}
 
-	type cityResponse struct {
-		City  data.City `json:"city"`
-		Error any       `json:"error"`
-	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			statusCode, header, body := ts.get(t, tt.urlPath)
-
 			assert.Equal(t, statusCode, tt.wantCode)
 			assert.Equal(t, header.Get("content-type"), "application/json")
 
-			var got cityResponse
+			var got gotResponse
 			unmarshalJSON(t, body, &got)
 			assert.DeepEqual(t, got.City, tt.wantBody)
 
@@ -346,19 +329,13 @@ func TestCityIDandQuery(t *testing.T) {
 		},
 	}
 
-	type cityResponse struct {
-		City  data.City `json:"city"`
-		Error any       `json:"error"`
-	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			statusCode, header, body := ts.get(t, tt.urlPath)
-
 			assert.Equal(t, statusCode, tt.wantCode)
 			assert.Equal(t, header.Get("content-type"), "application/json")
 
-			var got cityResponse
+			var got gotResponse
 			unmarshalJSON(t, body, &got)
 			assert.DeepEqual(t, cityFildsToBool(got.City), tt.queryParams)
 
@@ -381,11 +358,7 @@ func TestCountries(t *testing.T) {
 	assert.Equal(t, statusCode, http.StatusOK)
 	assert.Equal(t, header.Get("content-type"), "application/json")
 
-	type countriesResponse struct {
-		Countries []data.Country `json:"countries"`
-	}
-
-	var got countriesResponse
+	var got gotResponse
 	unmarshalJSON(t, body, &got)
 	assert.Equal(t, len(got.Countries), 249)
 
@@ -503,20 +476,14 @@ func TestCountry(t *testing.T) {
 		},
 	}
 
-	type countriesResponse struct {
-		Country data.Country `json:"country"`
-		Error   any          `json:"error"`
-	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			statusCode, header, body := ts.get(t, tt.urlPath)
 			assert.Equal(t, statusCode, tt.expectedCode)
 			assert.Equal(t, header.Get("content-type"), "application/json")
 
-			var got countriesResponse
+			var got gotResponse
 			unmarshalJSON(t, body, &got)
-
 			assert.DeepEqual(t, got.Country, tt.country)
 
 			switch tt.expectedCode {
@@ -627,19 +594,13 @@ func TestCountryandQuery(t *testing.T) {
 		},
 	}
 
-	type countriesResponse struct {
-		Country data.Country `json:"country"`
-		Error   any          `json:"error"`
-	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			statusCode, header, body := ts.get(t, tt.urlPath)
-
 			assert.Equal(t, statusCode, tt.wantCode)
 			assert.Equal(t, header.Get("content-type"), "application/json")
 
-			var got countriesResponse
+			var got gotResponse
 			unmarshalJSON(t, body, &got)
 			assert.DeepEqual(t, countryFildsToBool(got.Country), tt.queryParams)
 

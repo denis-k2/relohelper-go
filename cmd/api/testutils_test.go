@@ -106,6 +106,14 @@ func unmarshalJSON(t *testing.T, body []byte, gotPtr any) {
 	}
 }
 
+type gotResponse struct {
+	City    data.City    `json:"city"`
+	Cities  []data.City  `json:"cities"`
+	Country data.Country `json:"country"`
+	Countries []data.Country `json:"countries"`
+	Error   any          `json:"error"`
+}
+
 type QueryParams struct {
 	costEnabled    bool
 	indicesEnabled bool
