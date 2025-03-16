@@ -10,7 +10,7 @@ import (
 	"github.com/denis-k2/relohelper-go/internal/validator"
 )
 
-func (app *application) showCountriesHandler(w http.ResponseWriter, r *http.Request) {
+func (app *application) listCountriesHandler(w http.ResponseWriter, r *http.Request) {
 	countries, err := app.models.Countries.GetCountryList()
 	if err != nil {
 		app.serverErrorResponse(w, r, err)

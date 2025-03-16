@@ -107,34 +107,34 @@ func unmarshalJSON(t *testing.T, body []byte, gotPtr any) {
 }
 
 type gotResponse struct {
-	City    data.City    `json:"city"`
-	Cities  []data.City  `json:"cities"`
-	Country data.Country `json:"country"`
+	City      data.City      `json:"city"`
+	Cities    []data.City    `json:"cities"`
+	Country   data.Country   `json:"country"`
 	Countries []data.Country `json:"countries"`
-	Error   any          `json:"error"`
+	Error     any            `json:"error"`
 }
 
-type QueryParams struct {
+type queryParamsCity struct {
 	costEnabled    bool
 	indicesEnabled bool
 	climateEnabled bool
 }
 
-func cityFildsToBool(c data.City) QueryParams {
-	return QueryParams{
+func cityFildsToBool(c data.City) queryParamsCity {
+	return queryParamsCity{
 		costEnabled:    c.NumbeoCost != nil,
 		indicesEnabled: c.NumbeoIndices != nil,
 		climateEnabled: c.AvgClimate != nil,
 	}
 }
 
-type QueryParamsCountry struct {
+type queryParamsCountry struct {
 	numbeoIndicesEnabled  bool
 	legatumIndicesEnabled bool
 }
 
-func countryFildsToBool(c data.Country) QueryParamsCountry {
-	return QueryParamsCountry{
+func countryFildsToBool(c data.Country) queryParamsCountry {
+	return queryParamsCountry{
 		numbeoIndicesEnabled:  c.NumbeoIndices != nil,
 		legatumIndicesEnabled: c.LegatumIndices != nil,
 	}

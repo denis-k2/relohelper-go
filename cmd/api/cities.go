@@ -8,7 +8,7 @@ import (
 	"github.com/denis-k2/relohelper-go/internal/validator"
 )
 
-func (app *application) GetCities(w http.ResponseWriter, r *http.Request) {
+func (app *application) listCitiesHandler(w http.ResponseWriter, r *http.Request) {
 	var input data.Filters
 	v := validator.New()
 	qs := r.URL.Query()
@@ -40,7 +40,7 @@ func (app *application) GetCities(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (app *application) GetCity(w http.ResponseWriter, r *http.Request) {
+func (app *application) showCityHandler(w http.ResponseWriter, r *http.Request) {
 	id, err := app.readIDParam(r)
 	if err != nil {
 		app.notFoundResponse(w, r)
