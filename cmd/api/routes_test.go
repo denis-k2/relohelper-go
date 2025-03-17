@@ -613,3 +613,65 @@ func TestCountryandQuery(t *testing.T) {
 		})
 	}
 }
+
+// TestErrorHandling tests handle 404 Not Found and 405 Method Not Allowed errors.
+func TestErrorHandling(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	tests := []struct {
+		name       string
+		method     string
+		urlPath    string
+		statusCode int
+		errMessage string
+	}{
+		{
+			name:       "GET to non-existent endpoint",
+			method:     "GET",
+			urlPath:    "/invalidpath",
+			statusCode: http.StatusNotFound,
+			errMessage: "the requested resource could not be found",
+		},
+		{
+			name:       "POST to non-existent endpoint",
+			method:     "POST",
+			urlPath:    "/cities/123/invalidpath",
+			statusCode: http.StatusNotFound,
+			errMessage: "the requested resource could not be found",
+		},
+		{
+			name:       "Unsupported method PUT to existent endpoint",
+			method:     "PUT",
+			urlPath:    "/cities",
+			statusCode: http.StatusMethodNotAllowed,
+			errMessage: "the PUT method is not supported for this resource",
+		},
+		{
+			name:       "Unsupported method PATCH to existent endpoint",
+			method:     "PATCH",
+			urlPath:    "/countries/rus",
+			statusCode: http.StatusMethodNotAllowed,
+			errMessage: "the PATCH method is not supported for this resource",
+		},
+		{
+			name:       "Unsupported method DELETE to existent endpoint",
+			method:     "DELETE",
+			urlPath:    "/cities/123",
+			statusCode: http.StatusMethodNotAllowed,
+			errMessage: "the DELETE method is not supported for this resource",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statusCode, header, body := ts.sendRequest(t, tt.method, tt.urlPath, nil)
+			assert.Equal(t, statusCode, tt.statusCode)
+			assert.Equal(t, header.Get("Content-Type"), "application/json")
+
+			var got gotResponse
+			unmarshalJSON(t, body, &got)
+			assert.DeepEqual(t, got.Error, tt.errMessage)
+		})
+	}
+}
