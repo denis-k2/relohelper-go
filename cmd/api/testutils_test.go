@@ -99,6 +99,28 @@ func (ts *testServer) get(t *testing.T, urlPath string) (int, http.Header, []byt
 	return rs.StatusCode, rs.Header, body
 }
 
+// sendRequest universal method for sending requests with any HTTP method
+func (ts *testServer) sendRequest(t *testing.T, method string, urlPath string, body io.Reader) (int, http.Header, []byte) {
+	req, err := http.NewRequest(method, ts.URL+urlPath, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rs, err := ts.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer rs.Body.Close()
+	responseBody, err := io.ReadAll(rs.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	responseBody = bytes.TrimSpace(responseBody)
+
+	return rs.StatusCode, rs.Header, responseBody
+}
+
 func unmarshalJSON(t *testing.T, body []byte, gotPtr any) {
 	err := json.Unmarshal(body, gotPtr)
 	if err != nil {
