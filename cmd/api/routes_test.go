@@ -712,7 +712,7 @@ func TestUsersHandling(t *testing.T) {
 				Email:         validEmail,
 				PlainPassword: validPassword,
 			},
-			statusCode: http.StatusCreated,
+			statusCode: http.StatusAccepted,
 			errMessage: nil,
 		},
 		{
@@ -778,7 +778,7 @@ func TestUsersHandling(t *testing.T) {
 			var got gotResponse
 			unmarshalJSON(t, body, &got)
 
-			if tt.statusCode == http.StatusCreated {
+			if tt.statusCode == http.StatusAccepted {
 				assert.NotEmpty(t, got.User.ID)
 				assert.NotEmpty(t, got.User.CreatedAt)
 				assert.Equal(t, got.User.Name, tt.payload.Name)
