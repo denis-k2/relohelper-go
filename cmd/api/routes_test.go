@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/denis-k2/relohelper-go/internal/assert"
@@ -672,6 +673,120 @@ func TestErrorHandling(t *testing.T) {
 			var got gotResponse
 			unmarshalJSON(t, body, &got)
 			assert.DeepEqual(t, got.Error, tt.errMessage)
+		})
+	}
+}
+
+func TestUsersHandling(t *testing.T) {
+	setupUsersTable(t)
+	defer teardownUsersTable(t)
+
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	var (
+		validName = "Bob"
+		emptyName = ""
+		longName  = strings.Repeat("a", 501)
+
+		validPassword = "validPa$$word"
+		emptyPassword = ""
+		shortPassword = "pa$$"
+		longPassword  = strings.Repeat("a", 73)
+
+		validEmail   = "bob@example.com"
+		invalidEmail = "bob@invalid."
+		emptyEmail   = ""
+	)
+
+	tests := []struct {
+		name       string
+		payload    data.InputUser
+		statusCode int
+		errMessage map[string]any
+	}{
+		{
+			name: "Valid submission",
+			payload: data.InputUser{
+				Name:          validName,
+				Email:         validEmail,
+				PlainPassword: validPassword,
+			},
+			statusCode: http.StatusCreated,
+			errMessage: nil,
+		},
+		{
+			name: "User already exists (duplicate email)",
+			payload: data.InputUser{
+				Name:          validName,
+				Email:         validEmail,
+				PlainPassword: validPassword,
+			},
+			statusCode: http.StatusUnprocessableEntity,
+			errMessage: map[string]any{
+				"email": "a user with this email address already exists",
+			},
+		},
+		{
+			name: "Empty name, empty email, empty password",
+			payload: data.InputUser{
+				Name:          emptyName,
+				Email:         emptyEmail,
+				PlainPassword: emptyPassword,
+			},
+			statusCode: http.StatusUnprocessableEntity,
+			errMessage: map[string]any{
+				"email":    "must be provided",
+				"name":     "must be provided",
+				"password": "must be provided",
+			},
+		},
+		{
+			name: "Invalid email, short password",
+			payload: data.InputUser{
+				Name:          validName,
+				Email:         invalidEmail,
+				PlainPassword: shortPassword,
+			},
+			statusCode: http.StatusUnprocessableEntity,
+			errMessage: map[string]any{
+				"email":    "must be a valid email address",
+				"password": "must be at least 8 bytes long",
+			},
+		},
+		{
+			name: "Long name, long password",
+			payload: data.InputUser{
+				Name:          longName,
+				Email:         validEmail,
+				PlainPassword: longPassword,
+			},
+			statusCode: http.StatusUnprocessableEntity,
+			errMessage: map[string]any{
+				"name":     "must not be more than 500 bytes long",
+				"password": "must not be more than 72 bytes long",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statusCode, header, body := ts.postJSON(t, "/users", tt.payload)
+			assert.Equal(t, statusCode, tt.statusCode)
+			assert.Equal(t, header.Get("content-type"), "application/json")
+
+			var got gotResponse
+			unmarshalJSON(t, body, &got)
+
+			if tt.statusCode == http.StatusCreated {
+				assert.NotEmpty(t, got.User.ID)
+				assert.NotEmpty(t, got.User.CreatedAt)
+				assert.Equal(t, got.User.Name, tt.payload.Name)
+				assert.Equal(t, got.User.Email, tt.payload.Email)
+				assert.Equal(t, got.User.Activated, false)
+			} else {
+				assert.DeepEqual(t, got.Error, tt.errMessage)
+			}
 		})
 	}
 }

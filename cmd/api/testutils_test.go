@@ -44,6 +44,8 @@ func TestMain(m *testing.M) {
 
 	configureTestLogger(testCfg.env)
 
+	// Override DSN to ensure tests use the test database.
+	testCfg.db.dsn = os.Getenv("RELOHELPER_TEST_DB_DSN")
 	testApp, testDB, err = newTestApplication(testCfg)
 	if err != nil {
 		logger.Error("failed to initialize application", "error", err)
@@ -94,9 +96,34 @@ func (ts *testServer) get(t *testing.T, urlPath string) (int, http.Header, []byt
 	if err != nil {
 		t.Fatal(err)
 	}
-	body = bytes.TrimSpace(body)
 
-	return rs.StatusCode, rs.Header, body
+	return rs.StatusCode, rs.Header, bytes.TrimSpace(body)
+}
+
+func (ts *testServer) postJSON(t *testing.T, urlPath string, data any) (int, http.Header, []byte) {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req, err := http.NewRequest("POST", ts.URL+urlPath, bytes.NewBuffer(jsonData))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	rs, err := ts.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer rs.Body.Close()
+	body, err := io.ReadAll(rs.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return rs.StatusCode, rs.Header, bytes.TrimSpace(body)
 }
 
 // sendRequest universal method for sending requests with any HTTP method
@@ -133,6 +160,7 @@ type gotResponse struct {
 	Cities    []data.City    `json:"cities"`
 	Country   data.Country   `json:"country"`
 	Countries []data.Country `json:"countries"`
+	User      data.User      `json:"user"`
 	Error     any            `json:"error"`
 }
 
@@ -159,5 +187,35 @@ func countryFildsToBool(c data.Country) queryParamsCountry {
 	return queryParamsCountry{
 		numbeoIndicesEnabled:  c.NumbeoIndices != nil,
 		legatumIndicesEnabled: c.LegatumIndices != nil,
+	}
+}
+
+func setupUsersTable(t *testing.T) {
+	t.Helper()
+	script, err := os.ReadFile("../../migrations/000001_create_users_table.up.sql")
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
+	}
+
+	_, err = testDB.Exec(string(script))
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
+	}
+}
+
+func teardownUsersTable(t *testing.T) {
+	t.Helper()
+	script, err := os.ReadFile("../../migrations/000001_create_users_table.down.sql")
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
+	}
+
+	_, err = testDB.Exec(string(script))
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
 	}
 }

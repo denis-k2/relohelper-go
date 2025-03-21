@@ -18,5 +18,7 @@ func (app *application) routes() http.Handler {
 	router.HandlerFunc(http.MethodGet, "/countries", app.listCountriesHandler)
 	router.HandlerFunc(http.MethodGet, "/countries/:alpha3", app.showCountryHandler)
 
+	router.HandlerFunc(http.MethodPost, "/users", app.registerUserHandler)
+
 	return app.recoverPanic(app.rateLimit(router))
 }
