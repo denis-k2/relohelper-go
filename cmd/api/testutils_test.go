@@ -219,3 +219,33 @@ func teardownUsersTable(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func setupTokensTable(t *testing.T) {
+	t.Helper()
+	script, err := os.ReadFile("../../migrations/000002_create_tokens_table.up.sql")
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
+	}
+
+	_, err = testDB.Exec(string(script))
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
+	}
+}
+
+func teardownTokensTable(t *testing.T) {
+	t.Helper()
+	script, err := os.ReadFile("../../migrations/000002_create_tokens_table.down.sql")
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
+	}
+
+	_, err = testDB.Exec(string(script))
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
+	}
+}

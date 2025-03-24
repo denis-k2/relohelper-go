@@ -680,6 +680,8 @@ func TestErrorHandling(t *testing.T) {
 func TestUsersHandling(t *testing.T) {
 	setupUsersTable(t)
 	defer teardownUsersTable(t)
+	setupTokensTable(t)
+	defer teardownTokensTable(t)
 
 	ts := newTestServer(testApp.routes())
 	defer ts.Close()
