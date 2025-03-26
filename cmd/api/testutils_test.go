@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/denis-k2/relohelper-go/internal/data"
+	"github.com/denis-k2/relohelper-go/internal/mailer/mocks"
 )
 
 var (
@@ -73,6 +74,7 @@ func newTestApplication(cfg config) (*application, *sql.DB, error) {
 		config: cfg,
 		logger: logger,
 		models: data.NewModels(db),
+		mailer: mocks.NewMockMailer(),
 	}, db, nil
 }
 
@@ -100,13 +102,14 @@ func (ts *testServer) get(t *testing.T, urlPath string) (int, http.Header, []byt
 	return rs.StatusCode, rs.Header, bytes.TrimSpace(body)
 }
 
-func (ts *testServer) postJSON(t *testing.T, urlPath string, data any) (int, http.Header, []byte) {
-	jsonData, err := json.Marshal(data)
+// sendRequest universal method for sending requests with any HTTP method
+func (ts *testServer) sendRequest(t *testing.T, method string, urlPath string, body any) (int, http.Header, []byte) {
+	jsonData, err := json.Marshal(body)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	req, err := http.NewRequest("POST", ts.URL+urlPath, bytes.NewBuffer(jsonData))
+	req, err := http.NewRequest(method, ts.URL+urlPath, bytes.NewBuffer(jsonData))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,34 +121,12 @@ func (ts *testServer) postJSON(t *testing.T, urlPath string, data any) (int, htt
 	}
 
 	defer rs.Body.Close()
-	body, err := io.ReadAll(rs.Body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	return rs.StatusCode, rs.Header, bytes.TrimSpace(body)
-}
-
-// sendRequest universal method for sending requests with any HTTP method
-func (ts *testServer) sendRequest(t *testing.T, method string, urlPath string, body io.Reader) (int, http.Header, []byte) {
-	req, err := http.NewRequest(method, ts.URL+urlPath, body)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	rs, err := ts.Client().Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer rs.Body.Close()
 	responseBody, err := io.ReadAll(rs.Body)
 	if err != nil {
 		t.Fatal(err)
 	}
-	responseBody = bytes.TrimSpace(responseBody)
 
-	return rs.StatusCode, rs.Header, responseBody
+	return rs.StatusCode, rs.Header, bytes.TrimSpace(responseBody)
 }
 
 func unmarshalJSON(t *testing.T, body []byte, gotPtr any) {

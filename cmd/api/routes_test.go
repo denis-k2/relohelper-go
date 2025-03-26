@@ -9,6 +9,7 @@ import (
 
 	"github.com/denis-k2/relohelper-go/internal/assert"
 	"github.com/denis-k2/relohelper-go/internal/data"
+	"github.com/denis-k2/relohelper-go/internal/mailer/mocks"
 )
 
 // TestHealthcheck tests the "/healthcheck" endpoint.
@@ -662,6 +663,20 @@ func TestErrorHandling(t *testing.T) {
 			statusCode: http.StatusMethodNotAllowed,
 			errMessage: "the DELETE method is not supported for this resource",
 		},
+		{
+			name:       "Unsupported method GET for users registratoin endpoint",
+			method:     "GET",
+			urlPath:    "/users",
+			statusCode: http.StatusMethodNotAllowed,
+			errMessage: "the GET method is not supported for this resource",
+		},
+		{
+			name:       "Unsupported method POST for users activation endpoint",
+			method:     "POST",
+			urlPath:    "/users/activated",
+			statusCode: http.StatusMethodNotAllowed,
+			errMessage: "the POST method is not supported for this resource",
+		},
 	}
 
 	for _, tt := range tests {
@@ -677,7 +692,7 @@ func TestErrorHandling(t *testing.T) {
 	}
 }
 
-func TestUsersHandling(t *testing.T) {
+func TestRegisterUser(t *testing.T) {
 	setupUsersTable(t)
 	defer teardownUsersTable(t)
 	setupTokensTable(t)
@@ -773,7 +788,7 @@ func TestUsersHandling(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			statusCode, header, body := ts.postJSON(t, "/users", tt.payload)
+			statusCode, header, body := ts.sendRequest(t, "POST", "/users", tt.payload)
 			assert.Equal(t, statusCode, tt.statusCode)
 			assert.Equal(t, header.Get("content-type"), "application/json")
 
@@ -788,6 +803,121 @@ func TestUsersHandling(t *testing.T) {
 				assert.Equal(t, got.User.Activated, false)
 			} else {
 				assert.DeepEqual(t, got.Error, tt.errMessage)
+			}
+		})
+	}
+}
+
+func TestActivateUser(t *testing.T) {
+	setupUsersTable(t)
+	defer teardownUsersTable(t)
+	setupTokensTable(t)
+	defer teardownTokensTable(t)
+
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	inputUser := data.InputUser{
+		Name:          "John Smith",
+		Email:         "john@example.com",
+		PlainPassword: "validPa55word",
+	}
+
+	statusCode, _, _ := ts.sendRequest(t, "POST", "/users", inputUser)
+	assert.Equal(t, statusCode, http.StatusAccepted)
+
+	mockMailer := testApp.mailer.(*mocks.MockMailer)
+	plainBody := mockMailer.Email.PlainBody
+	bodyMap, ok := plainBody.(map[string]any)
+	if !ok {
+		t.Fatal("plainBody is not a map[string]any")
+	}
+	token, exists := bodyMap["activationToken"]
+	if !exists {
+		t.Fatal("activationToken not found in plainBody")
+	}
+
+	tests := []struct {
+		name         string
+		tokenMessage map[string]any
+		statusCode   int
+		errorMessage map[string]any
+		payload      data.InputUser
+	}{
+		{
+			name:         "Valid activation",
+			tokenMessage: map[string]any{"token": token},
+			statusCode:   http.StatusOK,
+			errorMessage: nil,
+			payload:      inputUser,
+		},
+		{
+			name:         "User already activated (duplicate activation)",
+			tokenMessage: map[string]any{"token": token},
+			statusCode:   http.StatusUnprocessableEntity,
+			errorMessage: map[string]any{
+				"token": "invalid or expired activation token",
+			},
+		},
+		{
+			name:         "Mismatched or expired activation token",
+			tokenMessage: map[string]any{"token": "P4B3URJZJ2NW5UPZC2OHN4H2NM"},
+			statusCode:   http.StatusUnprocessableEntity,
+			errorMessage: map[string]any{
+				"token": "invalid or expired activation token",
+			},
+		},
+		{
+			name:         "Short activation token",
+			tokenMessage: map[string]any{"token": "P4B3URJZJ"},
+			statusCode:   http.StatusUnprocessableEntity,
+			errorMessage: map[string]any{
+				"token": "must be 26 bytes long",
+			},
+		},
+		{
+			name:         "Long activation token",
+			tokenMessage: map[string]any{"token": "P4B3URJZJ2NW5UPZC2OHN4H2NM11111"},
+			statusCode:   http.StatusUnprocessableEntity,
+			errorMessage: map[string]any{
+				"token": "must be 26 bytes long",
+			},
+		},
+		{
+			name:         "Empty token messege",
+			tokenMessage: map[string]any{},
+			statusCode:   http.StatusUnprocessableEntity,
+			errorMessage: map[string]any{
+				"token": "must be provided",
+			},
+		},
+		{
+			name:         "Empty token value",
+			tokenMessage: map[string]any{"token": ""},
+			statusCode:   http.StatusUnprocessableEntity,
+			errorMessage: map[string]any{
+				"token": "must be provided",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statusCode, header, body := ts.sendRequest(t, "PUT", "/users/activated", tt.tokenMessage)
+			assert.Equal(t, statusCode, tt.statusCode)
+			assert.Equal(t, header.Get("content-type"), "application/json")
+
+			var got gotResponse
+			unmarshalJSON(t, body, &got)
+
+			if tt.statusCode == http.StatusOK {
+				assert.Equal(t, got.User.ID, 1)
+				assert.Equal(t, got.User.Name, tt.payload.Name)
+				assert.Equal(t, got.User.Email, tt.payload.Email)
+				assert.Equal(t, got.User.Activated, true)
+				assert.NotEmpty(t, got.User.CreatedAt)
+			} else {
+				assert.DeepEqual(t, got.Error, tt.errorMessage)
 			}
 		})
 	}
