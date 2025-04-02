@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/denis-k2/relohelper-go/internal/data"
-	"github.com/denis-k2/relohelper-go/internal/mailer/mocks"
+	"github.com/denis-k2/relohelper-go/internal/mocks"
 )
 
 var (
@@ -83,6 +83,13 @@ type testServer struct {
 }
 
 func newTestServer(h http.Handler) *testServer {
+	testApp.models = data.NewModels(testDB)
+	ts := httptest.NewTLSServer(h)
+	return &testServer{ts}
+}
+
+func newTestServerWithMockUser(h http.Handler) *testServer {
+	testApp.models.Users = mocks.NewMockUserModel()
 	ts := httptest.NewTLSServer(h)
 	return &testServer{ts}
 }
@@ -103,7 +110,7 @@ func (ts *testServer) get(t *testing.T, urlPath string) (int, http.Header, []byt
 }
 
 // sendRequest universal method for sending requests with any HTTP method
-func (ts *testServer) sendRequest(t *testing.T, method string, urlPath string, body any) (int, http.Header, []byte) {
+func (ts *testServer) sendRequest(t *testing.T, method string, urlPath string, headers http.Header, body any) (int, http.Header, []byte) {
 	jsonData, err := json.Marshal(body)
 	if err != nil {
 		t.Fatal(err)
@@ -114,6 +121,11 @@ func (ts *testServer) sendRequest(t *testing.T, method string, urlPath string, b
 		t.Fatal(err)
 	}
 	req.Header.Set("Content-Type", "application/json")
+	for key, values := range headers {
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
+	}
 
 	rs, err := ts.Client().Do(req)
 	if err != nil {
@@ -143,6 +155,10 @@ type gotResponse struct {
 	Countries []data.Country `json:"countries"`
 	User      data.User      `json:"user"`
 	Error     any            `json:"error"`
+	AuthToken struct {
+		Token  string `json:"token"`
+		Expiry string `json:"expiry"`
+	} `json:"authentication_token"`
 }
 
 type queryParamsCity struct {

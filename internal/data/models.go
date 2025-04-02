@@ -14,7 +14,7 @@ type Models struct {
 	Cities    CityModel
 	Countries CountryModel
 	Tokens    TokenModel
-	Users     UserModel
+	Users     UserModelInterface
 }
 
 func NewModels(db *sql.DB) Models {

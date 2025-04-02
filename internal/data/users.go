@@ -12,7 +12,15 @@ import (
 
 var (
 	ErrDuplicateEmail = errors.New("duplicate email")
+	AnonymousUser     = &User{}
 )
+
+type UserModelInterface interface {
+	GetByEmail(email string) (*User, error)
+	GetForToken(scope string, token string) (*User, error)
+	Insert(user *User) error
+	Update(user *User) error
+}
 
 type User struct {
 	ID        int64     `json:"id"`
@@ -33,6 +41,10 @@ type InputUser struct {
 	Name          string `json:"name"`
 	Email         string `json:"email"`
 	PlainPassword string `json:"password"`
+}
+
+func (u *User) IsAnonymous() bool {
+	return u == AnonymousUser
 }
 
 func (p *password) Set(plaintextPassword string) error {
