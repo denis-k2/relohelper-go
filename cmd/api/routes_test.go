@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/denis-k2/relohelper-go/internal/assert"
 	"github.com/denis-k2/relohelper-go/internal/data"
+	"github.com/denis-k2/relohelper-go/internal/mocks"
 )
 
 // TestHealthcheck tests the "/healthcheck" endpoint.
@@ -159,7 +161,7 @@ func TestCitiesByCountry(t *testing.T) {
 
 // TestCity tests the “/cities/:id” endpoint.
 func TestCityID(t *testing.T) {
-	ts := newTestServer(testApp.routes())
+	ts := newTestServerWithMockUser(testApp.routes())
 	defer ts.Close()
 
 	tests := []struct {
@@ -221,7 +223,7 @@ func TestCityID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			statusCode, header, body := ts.get(t, tt.urlPath)
+			statusCode, header, body := ts.sendRequest(t, "GET", tt.urlPath, mocks.Headers, nil)
 			assert.Equal(t, statusCode, tt.statusCode)
 			assert.Equal(t, header.Get("content-type"), "application/json")
 
@@ -238,7 +240,7 @@ func TestCityID(t *testing.T) {
 
 // TestCities tests the “/cities/:id” endpoint with query parameters.
 func TestCityIDandQuery(t *testing.T) {
-	ts := newTestServer(testApp.routes())
+	ts := newTestServerWithMockUser(testApp.routes())
 	defer ts.Close()
 
 	tests := []struct {
@@ -331,7 +333,7 @@ func TestCityIDandQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			statusCode, header, body := ts.get(t, tt.urlPath)
+			statusCode, header, body := ts.sendRequest(t, "GET", tt.urlPath, mocks.Headers, nil)
 			assert.Equal(t, statusCode, tt.statusCode)
 			assert.Equal(t, header.Get("content-type"), "application/json")
 
@@ -398,7 +400,7 @@ func TestCountries(t *testing.T) {
 
 // TestCountry tests the “/countries/:alpha3" endpoint.
 func TestCountry(t *testing.T) {
-	ts := newTestServer(testApp.routes())
+	ts := newTestServerWithMockUser(testApp.routes())
 	defer ts.Close()
 
 	tests := []struct {
@@ -478,7 +480,7 @@ func TestCountry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			statusCode, header, body := ts.get(t, tt.urlPath)
+			statusCode, header, body := ts.sendRequest(t, "GET", tt.urlPath, mocks.Headers, nil)
 			assert.Equal(t, statusCode, tt.statusCode)
 			assert.Equal(t, header.Get("content-type"), "application/json")
 
@@ -501,7 +503,7 @@ func TestCountry(t *testing.T) {
 
 // TestCountryandQuery tests the “/countries/:alpha3” endpoint with query parameters.
 func TestCountryandQuery(t *testing.T) {
-	ts := newTestServer(testApp.routes())
+	ts := newTestServerWithMockUser(testApp.routes())
 	defer ts.Close()
 
 	tests := []struct {
@@ -596,7 +598,7 @@ func TestCountryandQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			statusCode, header, body := ts.get(t, tt.urlPath)
+			statusCode, header, body := ts.sendRequest(t, "GET", tt.urlPath, mocks.Headers, nil)
 			assert.Equal(t, statusCode, tt.statusCode)
 			assert.Equal(t, header.Get("content-type"), "application/json")
 
@@ -661,17 +663,369 @@ func TestErrorHandling(t *testing.T) {
 			statusCode: http.StatusMethodNotAllowed,
 			errMessage: "the DELETE method is not supported for this resource",
 		},
+		{
+			name:       "Unsupported method GET for users registratoin endpoint",
+			method:     "GET",
+			urlPath:    "/users",
+			statusCode: http.StatusMethodNotAllowed,
+			errMessage: "the GET method is not supported for this resource",
+		},
+		{
+			name:       "Unsupported method POST for users activation endpoint",
+			method:     "POST",
+			urlPath:    "/users/activated",
+			statusCode: http.StatusMethodNotAllowed,
+			errMessage: "the POST method is not supported for this resource",
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			statusCode, header, body := ts.sendRequest(t, tt.method, tt.urlPath, nil)
+			statusCode, header, body := ts.sendRequest(t, tt.method, tt.urlPath, nil, nil)
 			assert.Equal(t, statusCode, tt.statusCode)
 			assert.Equal(t, header.Get("Content-Type"), "application/json")
 
 			var got gotResponse
 			unmarshalJSON(t, body, &got)
 			assert.DeepEqual(t, got.Error, tt.errMessage)
+		})
+	}
+}
+
+func TestRegisterUser(t *testing.T) {
+	setupUsersTable(t)
+	defer teardownUsersTable(t)
+	setupTokensTable(t)
+	defer teardownTokensTable(t)
+
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	var (
+		validName = "Bob"
+		emptyName = ""
+		longName  = strings.Repeat("a", 501)
+
+		validPassword = "validPa$$word"
+		emptyPassword = ""
+		shortPassword = "pa$$"
+		longPassword  = strings.Repeat("a", 73)
+
+		validEmail   = "bob@example.com"
+		invalidEmail = "bob@invalid."
+		emptyEmail   = ""
+	)
+
+	tests := []struct {
+		name       string
+		payload    data.InputUser
+		statusCode int
+		errMessage map[string]any
+	}{
+		{
+			name: "Valid submission",
+			payload: data.InputUser{
+				Name:          validName,
+				Email:         validEmail,
+				PlainPassword: validPassword,
+			},
+			statusCode: http.StatusAccepted,
+			errMessage: nil,
+		},
+		{
+			name: "User already exists (duplicate email)",
+			payload: data.InputUser{
+				Name:          validName,
+				Email:         validEmail,
+				PlainPassword: validPassword,
+			},
+			statusCode: http.StatusUnprocessableEntity,
+			errMessage: map[string]any{
+				"email": "a user with this email address already exists",
+			},
+		},
+		{
+			name: "Empty name, empty email, empty password",
+			payload: data.InputUser{
+				Name:          emptyName,
+				Email:         emptyEmail,
+				PlainPassword: emptyPassword,
+			},
+			statusCode: http.StatusUnprocessableEntity,
+			errMessage: map[string]any{
+				"email":    "must be provided",
+				"name":     "must be provided",
+				"password": "must be provided",
+			},
+		},
+		{
+			name: "Invalid email, short password",
+			payload: data.InputUser{
+				Name:          validName,
+				Email:         invalidEmail,
+				PlainPassword: shortPassword,
+			},
+			statusCode: http.StatusUnprocessableEntity,
+			errMessage: map[string]any{
+				"email":    "must be a valid email address",
+				"password": "must be at least 8 bytes long",
+			},
+		},
+		{
+			name: "Long name, long password",
+			payload: data.InputUser{
+				Name:          longName,
+				Email:         validEmail,
+				PlainPassword: longPassword,
+			},
+			statusCode: http.StatusUnprocessableEntity,
+			errMessage: map[string]any{
+				"name":     "must not be more than 500 bytes long",
+				"password": "must not be more than 72 bytes long",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statusCode, header, body := ts.sendRequest(t, "POST", "/users", nil, tt.payload)
+			assert.Equal(t, statusCode, tt.statusCode)
+			assert.Equal(t, header.Get("content-type"), "application/json")
+
+			var got gotResponse
+			unmarshalJSON(t, body, &got)
+
+			if tt.statusCode == http.StatusAccepted {
+				assert.NotEmpty(t, got.User.ID)
+				assert.NotEmpty(t, got.User.CreatedAt)
+				assert.Equal(t, got.User.Name, tt.payload.Name)
+				assert.Equal(t, got.User.Email, tt.payload.Email)
+				assert.Equal(t, got.User.Activated, false)
+			} else {
+				assert.DeepEqual(t, got.Error, tt.errMessage)
+			}
+		})
+	}
+}
+
+func TestActivateUser(t *testing.T) {
+	setupUsersTable(t)
+	defer teardownUsersTable(t)
+	setupTokensTable(t)
+	defer teardownTokensTable(t)
+
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	inputUser := data.InputUser{
+		Name:          "John Smith",
+		Email:         "john@example.com",
+		PlainPassword: "validPa55word",
+	}
+
+	// User registration
+	statusCode, _, _ := ts.sendRequest(t, "POST", "/users", nil, inputUser)
+	assert.Equal(t, statusCode, http.StatusAccepted)
+
+	// User activation via e-mail
+	mockMailer := testApp.mailer.(*mocks.MockMailer)
+	plainBody := mockMailer.Email.PlainBody
+	bodyMap, ok := plainBody.(map[string]any)
+	if !ok {
+		t.Fatal("plainBody is not a map[string]any")
+	}
+	token, exists := bodyMap["activationToken"]
+	if !exists {
+		t.Fatal("activationToken not found in plainBody")
+	}
+
+	tests := []struct {
+		name         string
+		tokenMessage map[string]any
+		statusCode   int
+		errorMessage map[string]any
+		payload      data.InputUser
+	}{
+		{
+			name:         "Valid activation",
+			tokenMessage: map[string]any{"token": token},
+			statusCode:   http.StatusOK,
+			errorMessage: nil,
+			payload:      inputUser,
+		},
+		{
+			name:         "User already activated (duplicate activation)",
+			tokenMessage: map[string]any{"token": token},
+			statusCode:   http.StatusUnprocessableEntity,
+			errorMessage: map[string]any{
+				"token": "invalid or expired activation token",
+			},
+		},
+		{
+			name:         "Mismatched or expired activation token",
+			tokenMessage: map[string]any{"token": "P4B3URJZJ2NW5UPZC2OHN4H2NM"},
+			statusCode:   http.StatusUnprocessableEntity,
+			errorMessage: map[string]any{
+				"token": "invalid or expired activation token",
+			},
+		},
+		{
+			name:         "Short activation token",
+			tokenMessage: map[string]any{"token": "P4B3URJZJ"},
+			statusCode:   http.StatusUnprocessableEntity,
+			errorMessage: map[string]any{
+				"token": "must be 26 bytes long",
+			},
+		},
+		{
+			name:         "Long activation token",
+			tokenMessage: map[string]any{"token": "P4B3URJZJ2NW5UPZC2OHN4H2NM11111"},
+			statusCode:   http.StatusUnprocessableEntity,
+			errorMessage: map[string]any{
+				"token": "must be 26 bytes long",
+			},
+		},
+		{
+			name:         "Empty token messege",
+			tokenMessage: map[string]any{},
+			statusCode:   http.StatusUnprocessableEntity,
+			errorMessage: map[string]any{
+				"token": "must be provided",
+			},
+		},
+		{
+			name:         "Empty token value",
+			tokenMessage: map[string]any{"token": ""},
+			statusCode:   http.StatusUnprocessableEntity,
+			errorMessage: map[string]any{
+				"token": "must be provided",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statusCode, header, body := ts.sendRequest(t, "PUT", "/users/activated", nil, tt.tokenMessage)
+			assert.Equal(t, statusCode, tt.statusCode)
+			assert.Equal(t, header.Get("content-type"), "application/json")
+
+			var got gotResponse
+			unmarshalJSON(t, body, &got)
+
+			if tt.statusCode == http.StatusOK {
+				assert.Equal(t, got.User.ID, 1)
+				assert.Equal(t, got.User.Name, tt.payload.Name)
+				assert.Equal(t, got.User.Email, tt.payload.Email)
+				assert.Equal(t, got.User.Activated, true)
+				assert.NotEmpty(t, got.User.CreatedAt)
+			} else {
+				assert.DeepEqual(t, got.Error, tt.errorMessage) // User registration
+			}
+		})
+	}
+}
+
+func TestAuthorizationUser(t *testing.T) {
+	setupUsersTable(t)
+	defer teardownUsersTable(t)
+	setupTokensTable(t)
+	defer teardownTokensTable(t)
+
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	inputUser := data.InputUser{
+		Name:          "John Smith",
+		Email:         "john@example.com",
+		PlainPassword: "validPa55word",
+	}
+
+	// User registration
+	statusCode, _, _ := ts.sendRequest(t, "POST", "/users", nil, inputUser)
+	assert.Equal(t, statusCode, http.StatusAccepted)
+
+	// User activation via e-mail
+	mockMailer := testApp.mailer.(*mocks.MockMailer)
+	plainBody := mockMailer.Email.PlainBody
+	bodyMap, ok := plainBody.(map[string]any)
+	if !ok {
+		t.Fatal("plainBody is not a map[string]any")
+	}
+	activationToken, exists := bodyMap["activationToken"]
+	if !exists {
+		t.Fatal("activationToken not found in plainBody")
+	}
+	statusCode, _, _ = ts.sendRequest(t, "PUT", "/users/activated", nil, map[string]any{"token": activationToken})
+	assert.Equal(t, statusCode, http.StatusOK)
+
+	// Unregistered user authentication
+	notExistUser := map[string]string{"email": "alice@example.com", "password": "invalidPa55word"}
+	statusCode, _, body := ts.sendRequest(t, "POST", "/tokens/authentication", nil, notExistUser)
+	assert.Equal(t, statusCode, http.StatusUnauthorized)
+	var gotError map[string]any
+	unmarshalJSON(t, body, &gotError)
+	wantError := map[string]any{"error": "invalid authentication credentials"}
+	assert.DeepEqual(t, gotError, wantError)
+
+	// User authentication
+	user := map[string]string{"email": "john@example.com", "password": "validPa55word"}
+	statusCode, _, body = ts.sendRequest(t, "POST", "/tokens/authentication", nil, user)
+	assert.Equal(t, statusCode, http.StatusCreated)
+	var got gotResponse
+	unmarshalJSON(t, body, &got)
+	authToken := got.AuthToken.Token
+
+	tests := []struct {
+		name         string
+		header       http.Header
+		urlPath      string
+		statusCode   int
+		errorMessage string
+	}{
+		{
+			name:       "Valid authentication header",
+			header:     http.Header{"Authorization": []string{"Bearer " + authToken}},
+			urlPath:    "/cities/123",
+			statusCode: http.StatusOK,
+		},
+		{
+			name:         "Authentication with invalid token",
+			header:       http.Header{"Authorization": []string{"Bearer " + "XXXXXXXXXXXXXXX"}},
+			urlPath:      "/cities/123",
+			statusCode:   http.StatusUnauthorized,
+			errorMessage: "invalid or missing authentication token",
+		},
+		{
+			name:         "Malformed authorization header",
+			header:       http.Header{"Authorization": []string{"INVALID"}},
+			urlPath:      "/cities/123",
+			statusCode:   http.StatusUnauthorized,
+			errorMessage: "invalid or missing authentication token",
+		},
+		{
+			name:         "Missing required authorization header",
+			urlPath:      "/cities/123",
+			statusCode:   http.StatusUnauthorized,
+			errorMessage: "you must be authenticated to access this resource",
+		},
+		{
+			name:       "No authorization header provided (optional)",
+			urlPath:    "/countries",
+			statusCode: http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statusCode, header, body := ts.sendRequest(t, "GET", tt.urlPath, tt.header, nil)
+			assert.Equal(t, statusCode, tt.statusCode)
+			assert.Equal(t, header.Get("content-type"), "application/json")
+
+			if tt.statusCode != http.StatusOK {
+				var got gotResponse
+				unmarshalJSON(t, body, &got)
+				assert.DeepEqual(t, got.Error, tt.errorMessage)
+			}
 		})
 	}
 }

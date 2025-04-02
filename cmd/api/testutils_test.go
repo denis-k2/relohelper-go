@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/denis-k2/relohelper-go/internal/data"
+	"github.com/denis-k2/relohelper-go/internal/mocks"
 )
 
 var (
@@ -44,6 +45,8 @@ func TestMain(m *testing.M) {
 
 	configureTestLogger(testCfg.env)
 
+	// Override DSN to ensure tests use the test database.
+	testCfg.db.dsn = os.Getenv("RELOHELPER_TEST_DB_DSN")
 	testApp, testDB, err = newTestApplication(testCfg)
 	if err != nil {
 		logger.Error("failed to initialize application", "error", err)
@@ -71,6 +74,7 @@ func newTestApplication(cfg config) (*application, *sql.DB, error) {
 		config: cfg,
 		logger: logger,
 		models: data.NewModels(db),
+		mailer: mocks.NewMockMailer(),
 	}, db, nil
 }
 
@@ -79,6 +83,13 @@ type testServer struct {
 }
 
 func newTestServer(h http.Handler) *testServer {
+	testApp.models = data.NewModels(testDB)
+	ts := httptest.NewTLSServer(h)
+	return &testServer{ts}
+}
+
+func newTestServerWithMockUser(h http.Handler) *testServer {
+	testApp.models.Users = mocks.NewMockUserModel()
 	ts := httptest.NewTLSServer(h)
 	return &testServer{ts}
 }
@@ -94,16 +105,26 @@ func (ts *testServer) get(t *testing.T, urlPath string) (int, http.Header, []byt
 	if err != nil {
 		t.Fatal(err)
 	}
-	body = bytes.TrimSpace(body)
 
-	return rs.StatusCode, rs.Header, body
+	return rs.StatusCode, rs.Header, bytes.TrimSpace(body)
 }
 
 // sendRequest universal method for sending requests with any HTTP method
-func (ts *testServer) sendRequest(t *testing.T, method string, urlPath string, body io.Reader) (int, http.Header, []byte) {
-	req, err := http.NewRequest(method, ts.URL+urlPath, body)
+func (ts *testServer) sendRequest(t *testing.T, method string, urlPath string, headers http.Header, body any) (int, http.Header, []byte) {
+	jsonData, err := json.Marshal(body)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	req, err := http.NewRequest(method, ts.URL+urlPath, bytes.NewBuffer(jsonData))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for key, values := range headers {
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
 	}
 
 	rs, err := ts.Client().Do(req)
@@ -116,9 +137,8 @@ func (ts *testServer) sendRequest(t *testing.T, method string, urlPath string, b
 	if err != nil {
 		t.Fatal(err)
 	}
-	responseBody = bytes.TrimSpace(responseBody)
 
-	return rs.StatusCode, rs.Header, responseBody
+	return rs.StatusCode, rs.Header, bytes.TrimSpace(responseBody)
 }
 
 func unmarshalJSON(t *testing.T, body []byte, gotPtr any) {
@@ -133,7 +153,12 @@ type gotResponse struct {
 	Cities    []data.City    `json:"cities"`
 	Country   data.Country   `json:"country"`
 	Countries []data.Country `json:"countries"`
+	User      data.User      `json:"user"`
 	Error     any            `json:"error"`
+	AuthToken struct {
+		Token  string `json:"token"`
+		Expiry string `json:"expiry"`
+	} `json:"authentication_token"`
 }
 
 type queryParamsCity struct {
@@ -159,5 +184,65 @@ func countryFildsToBool(c data.Country) queryParamsCountry {
 	return queryParamsCountry{
 		numbeoIndicesEnabled:  c.NumbeoIndices != nil,
 		legatumIndicesEnabled: c.LegatumIndices != nil,
+	}
+}
+
+func setupUsersTable(t *testing.T) {
+	t.Helper()
+	script, err := os.ReadFile("../../migrations/000001_create_users_table.up.sql")
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
+	}
+
+	_, err = testDB.Exec(string(script))
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
+	}
+}
+
+func teardownUsersTable(t *testing.T) {
+	t.Helper()
+	script, err := os.ReadFile("../../migrations/000001_create_users_table.down.sql")
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
+	}
+
+	_, err = testDB.Exec(string(script))
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
+	}
+}
+
+func setupTokensTable(t *testing.T) {
+	t.Helper()
+	script, err := os.ReadFile("../../migrations/000002_create_tokens_table.up.sql")
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
+	}
+
+	_, err = testDB.Exec(string(script))
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
+	}
+}
+
+func teardownTokensTable(t *testing.T) {
+	t.Helper()
+	script, err := os.ReadFile("../../migrations/000002_create_tokens_table.down.sql")
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
+	}
+
+	_, err = testDB.Exec(string(script))
+	if err != nil {
+		testDB.Close()
+		t.Fatal(err)
 	}
 }
