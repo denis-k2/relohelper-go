@@ -101,7 +101,7 @@ func (c CountryModel) GetCountryList() ([]*Country, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 
 	countries := []*Country{}
 
@@ -230,7 +230,7 @@ func (c CountryModel) GetLegatumIndicies(country_code string) (*LegatumCountryIn
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 
 	dataFound := false
 	for rows.Next() {

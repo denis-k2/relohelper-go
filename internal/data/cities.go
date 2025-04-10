@@ -120,7 +120,7 @@ func (c CityModel) GetCityList(countryСode string) ([]*City, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 
 	cities := []*City{}
 
@@ -217,7 +217,7 @@ func (c CityModel) GetNumbeoCost(id int64) (*CostDetails, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 
 	dataFound := false
 	for rows.Next() {
@@ -338,7 +338,7 @@ func (c CityModel) GetAvgClimatePivot(id int64) (*AvgClimate, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer rows.Close() //nolint:errcheck
 
 	dataFound := false
 	for rows.Next() {
