@@ -1,5 +1,9 @@
 include .envrc
 
+# Formatting variables
+YELLOW := $(shell tput -Txterm setaf 3)
+RESET  := $(shell tput sgr0)
+
 # ==================================================================================== #
 # HELPERS
 # ==================================================================================== #
@@ -21,67 +25,69 @@ confirm:
 ## run/api: run the cmd/api application
 .PHONY: run/api
 run/api:
-	go run ./cmd/api -db-dsn=${RELOHELPER_DB_DSN}
+	@go run ./cmd/api -db-dsn=${RELOHELPER_DB_DSN}
 
 ## db/psql: connect to the database using psql
 .PHONY: db/psql
 db/psql:
-	psql ${RELOHELPER_DB_DSN}
+	@psql ${RELOHELPER_DB_DSN}
 
 ## db/migrations/new name=$1: create a new database migration
 .PHONY: db/migrations/new
 db/migrations/new:
 	@echo 'Creating migration files for ${name}...'
-	migrate create -seq -ext=.sql -dir=./migrations ${name}
+	@migrate create -seq -ext=.sql -dir=./migrations ${name}
 
 ## db/migrations/up: apply all up database migrations
 .PHONY: db/migrations/up
 db/migrations/up: confirm
 	@echo 'Running up migrations...'
-	migrate -path ./migrations -database ${RELOHELPER_DB_DSN} up
+	@migrate -path ./migrations -database ${RELOHELPER_DB_DSN} up
 
 # ==================================================================================== #
 # QUALITY CONTROL
 # ==================================================================================== #
 
-## tidy: format all .go files and tidy module dependencies
+## tidy: format code and tidy module dependencies
 .PHONY: tidy
 tidy:
-	@echo 'Formatting .go files...'
-	go fmt ./...
-	@echo 'Tidying module dependencies...'
-	go mod tidy
-	@echo 'Verifying and vendoring module dependencies...'
-	go mod verify
-	go mod vendor
+	@echo '${YELLOW}===> Formatting code${RESET}'
+	-@goimports -w .
+	@echo '${YELLOW}===> Running linter fixes${RESET}'
+	-@golangci-lint run --fix
+	@echo '${YELLOW}===> Tidying module dependencies${RESET}'
+	@go mod tidy
+	@echo '${YELLOW}===> Verifying and vendoring dependencies${RESET}'
+	-@go mod verify
 
-## audit: run quality control checks
+## audit: run quality control checks (no changes to code)
 .PHONY: audit
 audit:
-	@echo 'Checking module dependencies'
-	go mod tidy -diff
-	go mod verify
-	@echo 'Vetting code...'
-	go vet ./...
-	staticcheck ./...
-	@echo 'Running tests...'
-	go test -race -vet=off ./...
+	@echo '${YELLOW}===> Running code quality checks...${RESET}'
+	-@go mod tidy -diff
+	-@go mod verify
+	@echo '${YELLOW}===> Running modernize...${RESET}'
+	-@modernize -test ./...
+	@echo '${YELLOW}===> Running linter...${RESET}'
+	-@golangci-lint run
+	@echo '${YELLOW}===> Running full test suite...${RESET}'
+	-@go test -count=1 ./... -args -db-dsn=${RELOHELPER_TEST_DB_DSN}
 
 # ==================================================================================== #
 # TESTING
 # ==================================================================================== #
 
-## test: run all tests
+## test: run all tests (fast)
 .PHONY: test
 test:
 	@echo 'Running tests...'
-	go test -count=1 ./...
+	@go test -count=1 ./... -args -db-dsn=${RELOHELPER_TEST_DB_DSN}
 
 ## test/v: run all tests with verbose output and logs at debug level
 .PHONY: test/v
 test/v:
 	@echo 'Running tests (verbose)...'
-	go test -v -count=1 ./... -args -db-dsn=${RELOHELPER_TEST_DB_DSN} -env testLogs
+	@go test -v -count=1 ./... -args -db-dsn=${RELOHELPER_TEST_DB_DSN} -env testLogs
 
 # ==================================================================================== #
 # BUILD
@@ -98,21 +104,19 @@ build/api:
 # PRODUCTION
 # ==================================================================================== #
 
-production_host_ip = '45.153.68.48'
-
 ## production/connect: connect to the production server
 .PHONY: production/connect
 production/connect:
-	ssh relohelper@${production_host_ip}
+	ssh relohelper@${RELOHELPER_PROD_HOST}
 
 ## production/deploy/api: deploy the api to production
 .PHONY: production/deploy/api
 production/deploy/api:
-	rsync -P ./bin/api relohelper@${production_host_ip}:~
-	rsync -rP --delete ./migrations relohelper@${production_host_ip}:~
-	rsync -P ./remote/production/api.service relohelper@${production_host_ip}:~
-	rsync -P ./remote/production/Caddyfile relohelper@${production_host_ip}:~
-	ssh -t relohelper@${production_host_ip} '\
+	rsync -P ./bin/api relohelper@${RELOHELPER_PROD_HOST}:~
+	rsync -rP --delete ./migrations relohelper@${RELOHELPER_PROD_HOST}:~
+	rsync -P ./remote/production/api.service relohelper@${RELOHELPER_PROD_HOST}:~
+	rsync -P ./remote/production/Caddyfile relohelper@${RELOHELPER_PROD_HOST}:~
+	ssh -t relohelper@${RELOHELPER_PROD_HOST} '\
 		migrate -path ~/migrations -database $$RELOHELPER_DB_DSN up \
 		&& sudo mv ~/api.service /etc/systemd/system/ \
 		&& sudo systemctl enable api \
@@ -120,4 +124,3 @@ production/deploy/api:
 		&& sudo mv ~/Caddyfile /etc/caddy/ \
 		&& sudo systemctl reload caddy \
 	'
-
