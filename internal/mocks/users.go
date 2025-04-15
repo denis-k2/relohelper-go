@@ -8,8 +8,8 @@ import (
 )
 
 type MockUserModel struct {
-	mu       sync.Mutex
-	Users    map[string]*data.User
+	mu    sync.Mutex
+	Users map[string]*data.User
 }
 
 func NewMockUserModel() *MockUserModel {
