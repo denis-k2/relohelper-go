@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"database/sql"
+	"expvar"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 
@@ -68,6 +70,8 @@ func main() {
 	}
 	defer db.Close() //nolint:errcheck
 	logger.Info("database connection pool established")
+
+	registerMetrics(version, db)
 
 	app := &application{
 		config: cfg,
@@ -136,4 +140,20 @@ func openDB(cfg config) (*sql.DB, error) {
 	}
 
 	return db, nil
+}
+
+func registerMetrics(version string, db *sql.DB) {
+	expvar.NewString("version").Set(version)
+
+	expvar.Publish("goroutines", expvar.Func(func() any {
+		return runtime.NumGoroutine()
+	}))
+
+	expvar.Publish("database", expvar.Func(func() any {
+		return db.Stats()
+	}))
+
+	expvar.Publish("timestamp", expvar.Func(func() any {
+		return time.Now().Unix()
+	}))
 }
