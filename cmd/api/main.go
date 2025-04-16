@@ -102,11 +102,11 @@ func parseFlags() (config, error) {
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 20, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
 
-	flag.StringVar(&cfg.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
+	flag.StringVar(&cfg.smtp.host, "smtp-host", os.Getenv("RELOHELPER_SMTP_HOST"), "SMTP host")
 	flag.IntVar(&cfg.smtp.port, "smtp-port", 25, "SMTP port")
 	flag.StringVar(&cfg.smtp.username, "smtp-username", os.Getenv("RELOHELPER_SMTP_USERNAME"), "SMTP username")
 	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("RELOHELPER_SMTP_PASSWORD"), "SMTP password")
-	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Relohelper <no-reply@relohelper.xyz>", "SMTP sender")
+	flag.StringVar(&cfg.smtp.sender, "smtp-sender", os.Getenv("RELOHELPER_SMTP_SENDER"), "SMTP sender")
 
 	displayVersion := flag.Bool("version", false, "Display version and exit")
 
