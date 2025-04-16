@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"database/sql"
+	"expvar"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 
@@ -66,8 +68,10 @@ func main() {
 		logger.Error(err.Error())
 		os.Exit(1)
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck
 	logger.Info("database connection pool established")
+
+	registerMetrics(version, db)
 
 	app := &application{
 		config: cfg,
@@ -98,11 +102,11 @@ func parseFlags() (config, error) {
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 20, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
 
-	flag.StringVar(&cfg.smtp.host, "smtp-host", "sandbox.smtp.mailtrap.io", "SMTP host")
+	flag.StringVar(&cfg.smtp.host, "smtp-host", os.Getenv("RELOHELPER_SMTP_HOST"), "SMTP host")
 	flag.IntVar(&cfg.smtp.port, "smtp-port", 25, "SMTP port")
 	flag.StringVar(&cfg.smtp.username, "smtp-username", os.Getenv("RELOHELPER_SMTP_USERNAME"), "SMTP username")
 	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("RELOHELPER_SMTP_PASSWORD"), "SMTP password")
-	flag.StringVar(&cfg.smtp.sender, "smtp-sender", "Relohelper <no-reply@relohelper.xyz>", "SMTP sender")
+	flag.StringVar(&cfg.smtp.sender, "smtp-sender", os.Getenv("RELOHELPER_SMTP_SENDER"), "SMTP sender")
 
 	displayVersion := flag.Bool("version", false, "Display version and exit")
 
@@ -131,9 +135,25 @@ func openDB(cfg config) (*sql.DB, error) {
 
 	err = db.PingContext(ctx)
 	if err != nil {
-		db.Close()
+		db.Close() //nolint:errcheck
 		return nil, err
 	}
 
 	return db, nil
+}
+
+func registerMetrics(version string, db *sql.DB) {
+	expvar.NewString("version").Set(version)
+
+	expvar.Publish("goroutines", expvar.Func(func() any {
+		return runtime.NumGoroutine()
+	}))
+
+	expvar.Publish("database", expvar.Func(func() any {
+		return db.Stats()
+	}))
+
+	expvar.Publish("timestamp", expvar.Func(func() any {
+		return time.Now().Unix()
+	}))
 }
