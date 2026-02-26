@@ -88,7 +88,7 @@ type CountryModel struct {
 	DB *sql.DB
 }
 
-func (c CountryModel) GetCountryList() ([]*Country, error) {
+func (c CountryModel) GetCountryList() (countries []*Country, retErr error) {
 	query := `
         SELECT country_code, country
 		FROM country
@@ -101,9 +101,13 @@ func (c CountryModel) GetCountryList() ([]*Country, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close() //nolint:errcheck
+	defer func() {
+		if err := rows.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
 
-	countries := []*Country{}
+	countries = []*Country{}
 
 	for rows.Next() {
 		var country Country
@@ -210,9 +214,9 @@ func (c CountryModel) GetNumbeoCountryIndicies(country_code string) (*NumbeoCoun
 	return &index, nil
 }
 
-func (c CountryModel) GetLegatumIndicies(country_code string) (*LegatumCountryIndices, error) {
+func (c CountryModel) GetLegatumIndicies(country_code string) (result *LegatumCountryIndices, retErr error) {
 	query := `
-	SELECT 
+	SELECT
 		pillar_name,
 		rank_2007, rank_2008, rank_2009, rank_2010, rank_2011, rank_2012, rank_2013, rank_2014,
 		rank_2015, rank_2016, rank_2017, rank_2018, rank_2019, rank_2020, rank_2021, rank_2022, rank_2023,
@@ -230,7 +234,11 @@ func (c CountryModel) GetLegatumIndicies(country_code string) (*LegatumCountryIn
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close() //nolint:errcheck
+	defer func() {
+		if err := rows.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
 
 	dataFound := false
 	for rows.Next() {
@@ -315,5 +323,7 @@ func (c CountryModel) GetLegatumIndicies(country_code string) (*LegatumCountryIn
 		return nil, ErrRecordNotFound
 	}
 
-	return &legatum, nil
+	result = &legatum
+
+	return result, nil
 }

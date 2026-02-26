@@ -1,4 +1,3 @@
-//nolint:errcheck
 package main
 
 import (
@@ -101,7 +100,11 @@ func (ts *testServer) get(t *testing.T, urlPath string) (int, http.Header, []byt
 		t.Fatal(err)
 	}
 
-	defer rs.Body.Close()
+	defer func() {
+		if err := rs.Body.Close(); err != nil {
+			t.Errorf("failed to close response body: %v", err)
+		}
+	}()
 	body, err := io.ReadAll(rs.Body)
 	if err != nil {
 		t.Fatal(err)
@@ -133,7 +136,11 @@ func (ts *testServer) sendRequest(t *testing.T, method string, urlPath string, h
 		t.Fatal(err)
 	}
 
-	defer rs.Body.Close()
+	defer func() {
+		if err := rs.Body.Close(); err != nil {
+			t.Errorf("failed to close response body: %v", err)
+		}
+	}()
 	responseBody, err := io.ReadAll(rs.Body)
 	if err != nil {
 		t.Fatal(err)
@@ -192,13 +199,13 @@ func setupUsersTable(t *testing.T) {
 	t.Helper()
 	script, err := os.ReadFile("../../migrations/000001_create_users_table.up.sql")
 	if err != nil {
-		testDB.Close()
+		closeTestDB(t)
 		t.Fatal(err)
 	}
 
 	_, err = testDB.Exec(string(script))
 	if err != nil {
-		testDB.Close()
+		closeTestDB(t)
 		t.Fatal(err)
 	}
 }
@@ -207,13 +214,13 @@ func teardownUsersTable(t *testing.T) {
 	t.Helper()
 	script, err := os.ReadFile("../../migrations/000001_create_users_table.down.sql")
 	if err != nil {
-		testDB.Close()
+		closeTestDB(t)
 		t.Fatal(err)
 	}
 
 	_, err = testDB.Exec(string(script))
 	if err != nil {
-		testDB.Close()
+		closeTestDB(t)
 		t.Fatal(err)
 	}
 }
@@ -222,13 +229,13 @@ func setupTokensTable(t *testing.T) {
 	t.Helper()
 	script, err := os.ReadFile("../../migrations/000002_create_tokens_table.up.sql")
 	if err != nil {
-		testDB.Close()
+		closeTestDB(t)
 		t.Fatal(err)
 	}
 
 	_, err = testDB.Exec(string(script))
 	if err != nil {
-		testDB.Close()
+		closeTestDB(t)
 		t.Fatal(err)
 	}
 }
@@ -237,13 +244,21 @@ func teardownTokensTable(t *testing.T) {
 	t.Helper()
 	script, err := os.ReadFile("../../migrations/000002_create_tokens_table.down.sql")
 	if err != nil {
-		testDB.Close()
+		closeTestDB(t)
 		t.Fatal(err)
 	}
 
 	_, err = testDB.Exec(string(script))
 	if err != nil {
-		testDB.Close()
+		closeTestDB(t)
 		t.Fatal(err)
+	}
+}
+
+func closeTestDB(t *testing.T) {
+	t.Helper()
+
+	if err := testDB.Close(); err != nil {
+		t.Logf("failed to close test DB: %v", err)
 	}
 }
