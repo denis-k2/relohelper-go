@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/julienschmidt/httprouter"
+	"github.com/go-chi/chi/v5"
 
 	"github.com/denis-k2/relohelper-go/internal/data"
 	"github.com/denis-k2/relohelper-go/internal/validator"
@@ -34,7 +34,7 @@ func (app *application) showCountryHandler(w http.ResponseWriter, r *http.Reques
 	v := validator.New()
 	qs := r.URL.Query()
 
-	input.CountryCode = httprouter.ParamsFromContext(r.Context()).ByName("alpha3")
+	input.CountryCode = chi.URLParam(r, "alpha3")
 	input.numbeoCountryIndices = app.readString(qs, "numbeo_indices", "")
 	input.legatumIndices = app.readString(qs, "legatum_indices", "")
 	numbeoIndicesEnabled := data.ValidateBoolQuery(v, input.numbeoCountryIndices)
