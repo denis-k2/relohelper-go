@@ -9,6 +9,11 @@ import (
 
 func (app *application) routes() http.Handler {
 	router := chi.NewRouter()
+	router.Use(app.recoverPanic)
+	router.Use(app.enableCORS)
+	router.Use(app.rateLimit)
+	router.Use(app.authenticate)
+
 	router.NotFound(app.notFoundResponse)
 	router.MethodNotAllowed(app.methodNotAllowedResponse)
 
@@ -27,5 +32,5 @@ func (app *application) routes() http.Handler {
 		expvar.Handler().ServeHTTP(w, r)
 	})
 
-	return app.recoverPanic(app.enableCORS(app.rateLimit(app.authenticate(router))))
+	return router
 }
