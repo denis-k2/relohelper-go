@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"expvar"
 	"flag"
 	"fmt"
@@ -56,19 +57,29 @@ type application struct {
 }
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintf(os.Stderr, "server startup failed: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	cfg, err := parseFlags()
 	if err != nil {
-		os.Exit(1)
+		return err
 	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	db, err := openDB(cfg)
 	if err != nil {
-		logger.Error(err.Error())
-		os.Exit(1)
+		return err
 	}
-	defer db.Close() //nolint:errcheck
+	defer func() {
+		if err := db.Close(); err != nil {
+			logger.Error("failed to close database connection pool", "error", err)
+		}
+	}()
 	logger.Info("database connection pool established")
 
 	registerMetrics(version, db)
@@ -82,9 +93,10 @@ func main() {
 
 	err = app.serve()
 	if err != nil {
-		logger.Error(err.Error())
-		os.Exit(1)
+		return err
 	}
+
+	return nil
 }
 
 func parseFlags() (config, error) {
@@ -135,7 +147,9 @@ func openDB(cfg config) (*sql.DB, error) {
 
 	err = db.PingContext(ctx)
 	if err != nil {
-		db.Close() //nolint:errcheck
+		if closeErr := db.Close(); closeErr != nil {
+			return nil, errors.Join(err, closeErr)
+		}
 		return nil, err
 	}
 

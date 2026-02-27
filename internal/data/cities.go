@@ -106,7 +106,7 @@ type CityModel struct {
 	DB *sql.DB
 }
 
-func (c CityModel) GetCityList(countryСode string) ([]*City, error) {
+func (c CityModel) GetCityList(countryСode string) (cities []*City, retErr error) {
 	query := `
         SELECT city_id, city, state_code, country_code
 		FROM city
@@ -120,9 +120,13 @@ func (c CityModel) GetCityList(countryСode string) ([]*City, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close() //nolint:errcheck
+	defer func() {
+		if err := rows.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
 
-	cities := []*City{}
+	cities = []*City{}
 
 	dataFound := false
 	for rows.Next() {
@@ -189,13 +193,13 @@ func (c CityModel) GetCityID(id int64) (*City, error) {
 	return &city, nil
 }
 
-func (c CityModel) GetNumbeoCost(id int64) (*CostDetails, error) {
+func (c CityModel) GetNumbeoCost(id int64) (result *CostDetails, retErr error) {
 	if id < 1 {
 		return nil, ErrRecordNotFound
 	}
 
 	query := `
-		SELECT 
+		SELECT
         	nc.category,
         	np.param,
         	ns.cost,
@@ -203,7 +207,7 @@ func (c CityModel) GetNumbeoCost(id int64) (*CostDetails, error) {
 			upper(ns.range) AS upper_bound,
 			ns.currency,
         	to_char(ns.updated_date, 'YYYY-MM-DD')
-		FROM numbeo_stat ns 
+		FROM numbeo_stat ns
 		JOIN numbeo_param np ON ns.param_id = np.param_id
 		JOIN numbeo_category nc ON np.category_id = nc.category_id
 		WHERE ns.city_id = $1;`
@@ -217,7 +221,11 @@ func (c CityModel) GetNumbeoCost(id int64) (*CostDetails, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close() //nolint:errcheck
+	defer func() {
+		if err := rows.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
 
 	dataFound := false
 	for rows.Next() {
@@ -246,7 +254,9 @@ func (c CityModel) GetNumbeoCost(id int64) (*CostDetails, error) {
 		return nil, ErrRecordNotFound
 	}
 
-	return &cost, nil
+	result = &cost
+
+	return result, nil
 }
 
 func (c CityModel) GetNumbeoIndicies(id int64) (*Indices, error) {
@@ -305,7 +315,7 @@ func (c CityModel) GetNumbeoIndicies(id int64) (*Indices, error) {
 	return &index, nil
 }
 
-func (c CityModel) GetAvgClimatePivot(id int64) (*AvgClimate, error) {
+func (c CityModel) GetAvgClimatePivot(id int64) (result *AvgClimate, retErr error) {
 	if id < 1 {
 		return nil, ErrRecordNotFound
 	}
@@ -338,7 +348,11 @@ func (c CityModel) GetAvgClimatePivot(id int64) (*AvgClimate, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close() //nolint:errcheck
+	defer func() {
+		if err := rows.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
 
 	dataFound := false
 	for rows.Next() {
@@ -409,5 +423,7 @@ func (c CityModel) GetAvgClimatePivot(id int64) (*AvgClimate, error) {
 		return nil, ErrRecordNotFound
 	}
 
-	return &climate, nil
+	result = &climate
+
+	return result, nil
 }
