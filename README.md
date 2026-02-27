@@ -13,8 +13,7 @@ This project focuses on:
 - Performance-oriented implementation
 - Reproducible load testing
 
-The original Python implementation can be found here:
-https://github.com/denis-k2/relohelper
+The original Python implementation can be found [here](https://github.com/denis-k2/relohelper).
 
 ## Documentation
 
@@ -23,7 +22,7 @@ Project documentation is located in the `docs/` directory:
 - `docs/architecture/` — system structure and design
 - `docs/performance/` — load testing methodology and benchmark runs
 
-Performance comparison between Go and Python implementations is documented [here](https://github.com/denis-k2/relohelper-go/docs/performance/runs/2025-04-22_compare-go-v0.1.0_py-v0.3.0/README.md).
+Performance comparison between Go and Python implementations is documented [here](./docs/performance/runs/2025-04-22_compare-go-v0.1.0_py-v0.3.0/README.md).
 
 ## Current Status
 
