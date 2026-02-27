@@ -217,7 +217,7 @@ func TestCityID(t *testing.T) {
 		{
 			name:       "Empty ID",
 			urlPath:    "/cities/",
-			statusCode: http.StatusOK,
+			statusCode: http.StatusNotFound,
 		},
 	}
 
@@ -449,7 +449,7 @@ func TestCountry(t *testing.T) {
 		{
 			name:       "Empty country code",
 			urlPath:    "/countries/",
-			statusCode: http.StatusOK,
+			statusCode: http.StatusNotFound,
 		},
 		{
 			name:       "Code with 1 letter (a)",
