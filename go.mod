@@ -1,6 +1,6 @@
 module github.com/denis-k2/relohelper-go
 
-go 1.24.1
+go 1.26.0
 
 require github.com/julienschmidt/httprouter v1.3.0
 
