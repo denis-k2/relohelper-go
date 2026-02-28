@@ -25,7 +25,7 @@ func (app *application) listCitiesHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	_, idsPresent, err := parseIDsInt64(qs, "ids", 100)
+	_, idsPresent, err := parseIDsInt64(qs, "ids", app.config.batch.maxIDs)
 	if err != nil {
 		app.failedValidationResponse(w, r, map[string]string{"ids": err.Error()})
 		return

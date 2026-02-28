@@ -24,7 +24,7 @@ func (app *application) listCountriesHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	_, idsPresent, err := parseIDsString(qs, "country_codes", 100)
+	_, idsPresent, err := parseIDsString(qs, "country_codes", app.config.batch.maxIDs)
 	if err != nil {
 		app.failedValidationResponse(w, r, map[string]string{"country_codes": err.Error()})
 		return
