@@ -11,6 +11,29 @@ import (
 )
 
 func (app *application) listCountriesHandler(w http.ResponseWriter, r *http.Request) {
+	qs := r.URL.Query()
+
+	err := validateAllowedQueryParams(qs, newIncludeSet("country_codes", "include"))
+	if err != nil {
+		app.failedValidationResponse(w, r, map[string]string{"query": err.Error()})
+		return
+	}
+
+	if qs.Has("include") {
+		app.failedValidationResponse(w, r, map[string]string{"include": "include is not supported for countries list endpoint"})
+		return
+	}
+
+	_, idsPresent, err := parseIDsString(qs, "country_codes", 100)
+	if err != nil {
+		app.failedValidationResponse(w, r, map[string]string{"country_codes": err.Error()})
+		return
+	}
+	if idsPresent {
+		app.errorResponse(w, r, http.StatusNotImplemented, "batch retrieval for countries by country_codes is not implemented yet")
+		return
+	}
+
 	countries, err := app.models.Countries.GetCountryList()
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
@@ -28,17 +51,25 @@ func (app *application) listCountriesHandler(w http.ResponseWriter, r *http.Requ
 func (app *application) showCountryHandler(w http.ResponseWriter, r *http.Request) {
 	var input struct {
 		data.Filters
-		numbeoCountryIndices string
-		legatumIndices       string
 	}
 	v := validator.New()
 	qs := r.URL.Query()
+	err := validateAllowedQueryParams(qs, newIncludeSet("include"))
+	if err != nil {
+		app.failedValidationResponse(w, r, map[string]string{"query": err.Error()})
+		return
+	}
 
 	input.CountryCode = chi.URLParam(r, "alpha3")
-	input.numbeoCountryIndices = app.readString(qs, "numbeo_indices", "")
-	input.legatumIndices = app.readString(qs, "legatum_indices", "")
-	numbeoIndicesEnabled := data.ValidateBoolQuery(v, input.numbeoCountryIndices)
-	legatumIndicesEnabled := data.ValidateBoolQuery(v, input.legatumIndices)
+	include, err := parseInclude(qs, newIncludeSet("numbeo_indices", "legatum_indices"))
+	if err != nil {
+		app.failedValidationResponse(w, r, map[string]string{"include": err.Error()})
+		return
+	}
+
+	numbeoIndicesEnabled := include.Has("numbeo_indices")
+	legatumIndicesEnabled := include.Has("legatum_indices")
+
 	if data.ValidateFilters(v, input.Filters); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return

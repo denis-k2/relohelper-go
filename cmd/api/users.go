@@ -10,8 +10,14 @@ import (
 )
 
 func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Request) {
+	err := validateAllowedQueryParams(r.URL.Query(), newIncludeSet())
+	if err != nil {
+		app.failedValidationResponse(w, r, map[string]string{"query": err.Error()})
+		return
+	}
+
 	var input data.InputUser
-	err := app.readJSON(w, r, &input)
+	err = app.readJSON(w, r, &input)
 	if err != nil {
 		app.badRequestResponse(w, r, err)
 		return
@@ -72,11 +78,17 @@ func (app *application) registerUserHandler(w http.ResponseWriter, r *http.Reque
 }
 
 func (app *application) activateUserHandler(w http.ResponseWriter, r *http.Request) {
+	err := validateAllowedQueryParams(r.URL.Query(), newIncludeSet())
+	if err != nil {
+		app.failedValidationResponse(w, r, map[string]string{"query": err.Error()})
+		return
+	}
+
 	var input struct {
 		TokenPlaintext string `json:"token"`
 	}
 
-	err := app.readJSON(w, r, &input)
+	err = app.readJSON(w, r, &input)
 	if err != nil {
 		app.badRequestResponse(w, r, err)
 		return

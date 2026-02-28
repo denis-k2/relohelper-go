@@ -183,8 +183,8 @@ func TestCityID(t *testing.T) {
 			},
 		},
 		{
-			name:       "Valid ID with False & extra query params",
-			urlPath:    "/cities/273?numbeo_cost=false&numbeo_indices=0&avg_climate=&extra_param=true",
+			name:       "Valid ID with include query",
+			urlPath:    "/cities/273?include=country",
 			statusCode: http.StatusOK,
 			city: data.City{
 				CityID:      273,
@@ -251,7 +251,7 @@ func TestCityIDandQuery(t *testing.T) {
 	}{
 		{
 			name:       "One param enabled",
-			urlPath:    "/cities/12?numbeo_cost=true",
+			urlPath:    "/cities/12?include=numbeo_cost",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCity{
 				costEnabled:    true,
@@ -261,7 +261,7 @@ func TestCityIDandQuery(t *testing.T) {
 		},
 		{
 			name:       "Two params enabled",
-			urlPath:    "/cities/123?numbeo_cost=1&numbeo_indices=TRUE&avg_climate=f",
+			urlPath:    "/cities/123?include=numbeo_cost,numbeo_indices",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCity{
 				costEnabled:    true,
@@ -271,7 +271,7 @@ func TestCityIDandQuery(t *testing.T) {
 		},
 		{
 			name:       "All params enabled",
-			urlPath:    "/cities/456?numbeo_cost=t&numbeo_indices=1&avg_climate=True",
+			urlPath:    "/cities/456?include=numbeo_cost,numbeo_indices,avg_climate",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCity{
 				costEnabled:    true,
@@ -281,7 +281,7 @@ func TestCityIDandQuery(t *testing.T) {
 		},
 		{
 			name:       "Enable both params with missing Avg Climate data",
-			urlPath:    "/cities/329?numbeo_cost=t&numbeo_indices=1&avg_climate=t",
+			urlPath:    "/cities/329?include=numbeo_cost,numbeo_indices,avg_climate",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCity{
 				costEnabled:    true,
@@ -290,8 +290,8 @@ func TestCityIDandQuery(t *testing.T) {
 			},
 		},
 		{
-			name:       "One param with false value",
-			urlPath:    "/cities/321?numbeo_indices=0",
+			name:       "Include country only",
+			urlPath:    "/cities/321?include=country",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCity{
 				costEnabled:    false,
@@ -302,31 +302,26 @@ func TestCityIDandQuery(t *testing.T) {
 		{
 			name:       "Unknown params (mixed cases)",
 			urlPath:    "/cities/123?NUMBEO_COST=1&Numbeo_Indices=true&InvalidParam=TRUE",
-			statusCode: http.StatusOK,
-			queryParams: queryParamsCity{
-				costEnabled:    false, // Upper case parameter not recognized
-				indicesEnabled: false, // CamelCase parameter not recognized
-				climateEnabled: false,
-			},
+			statusCode: http.StatusUnprocessableEntity,
 		},
 		{
-			name:       "Duplicate params",
-			urlPath:    "/cities/234?numbeo_cost=false&numbeo_cost=true&avg_climate=1",
+			name:       "Duplicate includes",
+			urlPath:    "/cities/234?include=numbeo_cost,numbeo_cost,avg_climate",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCity{
-				costEnabled:    false,
+				costEnabled:    true,
 				indicesEnabled: false,
 				climateEnabled: true,
 			},
 		},
 		{
-			name:       "Unprocessable query value (123)",
-			urlPath:    "/cities/100?numbeo_cost=123",
+			name:       "Unprocessable include value (123)",
+			urlPath:    "/cities/100?include=123",
 			statusCode: http.StatusUnprocessableEntity,
 		},
 		{
-			name:       "Unprocessable query value (abc)",
-			urlPath:    "/cities/100?numbeo_cost=abc",
+			name:       "Unprocessable include value (abc)",
+			urlPath:    "/cities/100?include=abc",
 			statusCode: http.StatusUnprocessableEntity,
 		},
 	}
@@ -343,7 +338,17 @@ func TestCityIDandQuery(t *testing.T) {
 
 			if tt.statusCode == http.StatusUnprocessableEntity {
 				wantError := map[string]any{
-					"query parameter": "must be a boolean value",
+					"include": "include contains unsupported value \"123\"",
+				}
+				if tt.name == "Unprocessable include value (abc)" {
+					wantError = map[string]any{
+						"include": "include contains unsupported value \"abc\"",
+					}
+				}
+				if tt.name == "Unknown params (mixed cases)" {
+					wantError = map[string]any{
+						"query": "unknown query parameter \"InvalidParam\"",
+					}
 				}
 				assert.DeepEqual(t, got.Error, wantError)
 			}
@@ -514,7 +519,7 @@ func TestCountryandQuery(t *testing.T) {
 	}{
 		{
 			name:       "Enable only Numbeo indices",
-			urlPath:    "/countries/rus?numbeo_indices=true",
+			urlPath:    "/countries/rus?include=numbeo_indices",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCountry{
 				numbeoIndicesEnabled:  true,
@@ -523,7 +528,7 @@ func TestCountryandQuery(t *testing.T) {
 		},
 		{
 			name:       "Enable only Legatum indices",
-			urlPath:    "/countries/usa?legatum_indices=TRUE",
+			urlPath:    "/countries/usa?include=legatum_indices",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCountry{
 				numbeoIndicesEnabled:  false,
@@ -532,7 +537,7 @@ func TestCountryandQuery(t *testing.T) {
 		},
 		{
 			name:       "Enable all params (Numbeo and Legatum)",
-			urlPath:    "/countries/bra?numbeo_indices=1&legatum_indices=True",
+			urlPath:    "/countries/bra?include=numbeo_indices,legatum_indices",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCountry{
 				numbeoIndicesEnabled:  true,
@@ -541,7 +546,7 @@ func TestCountryandQuery(t *testing.T) {
 		},
 		{
 			name:       "Enable both params with missing Numbeo data",
-			urlPath:    "/countries/afg?numbeo_indices=t&legatum_indices=true",
+			urlPath:    "/countries/afg?include=numbeo_indices,legatum_indices",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCountry{
 				numbeoIndicesEnabled:  false,
@@ -550,7 +555,7 @@ func TestCountryandQuery(t *testing.T) {
 		},
 		{
 			name:       "Enable both params with missing both data",
-			urlPath:    "/countries/wlf?numbeo_indices=t&legatum_indices=t",
+			urlPath:    "/countries/wlf?include=numbeo_indices,legatum_indices",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCountry{
 				numbeoIndicesEnabled:  false,
@@ -558,8 +563,8 @@ func TestCountryandQuery(t *testing.T) {
 			},
 		},
 		{
-			name:       "Disable only Numbeo indices",
-			urlPath:    "/countries/can?numbeo_indices=0",
+			name:       "Include empty",
+			urlPath:    "/countries/can?include=",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCountry{
 				numbeoIndicesEnabled:  false,
@@ -569,29 +574,25 @@ func TestCountryandQuery(t *testing.T) {
 		{
 			name:       "Unknown params (mixed cases)",
 			urlPath:    "/countries/arg?Numbeo_Indices=true&LEGATHUM_INDICES=1&InvalidParam=TRUE",
-			statusCode: http.StatusOK,
-			queryParams: queryParamsCountry{
-				numbeoIndicesEnabled:  false, // CamelCase parameter not recognized
-				legatumIndicesEnabled: false, // Upper case parameter not recognized
-			},
+			statusCode: http.StatusUnprocessableEntity,
 		},
 		{
-			name:       "Duplicate params",
-			urlPath:    "/countries/chn?numbeo_indices=false&numbeo_indices=true&legatum_indices=1",
+			name:       "Duplicate includes",
+			urlPath:    "/countries/chn?include=numbeo_indices,numbeo_indices,legatum_indices",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCountry{
-				numbeoIndicesEnabled:  false,
+				numbeoIndicesEnabled:  true,
 				legatumIndicesEnabled: true,
 			},
 		},
 		{
-			name:       "Unprocessable query value (123)",
-			urlPath:    "/countries/deu?numbeo_indices=123",
+			name:       "Unprocessable include value (123)",
+			urlPath:    "/countries/deu?include=123",
 			statusCode: http.StatusUnprocessableEntity,
 		},
 		{
-			name:       "Unprocessable query value (abc)",
-			urlPath:    "/countries/nld?numbeo_indices=abc",
+			name:       "Unprocessable include value (abc)",
+			urlPath:    "/countries/nld?include=abc",
 			statusCode: http.StatusUnprocessableEntity,
 		},
 	}
@@ -608,10 +609,58 @@ func TestCountryandQuery(t *testing.T) {
 
 			if tt.statusCode == http.StatusUnprocessableEntity {
 				wantError := map[string]any{
-					"query parameter": "must be a boolean value",
+					"include": "include contains unsupported value \"123\"",
+				}
+				if tt.name == "Unprocessable include value (abc)" {
+					wantError = map[string]any{
+						"include": "include contains unsupported value \"abc\"",
+					}
+				}
+				if tt.name == "Unknown params (mixed cases)" {
+					wantError = map[string]any{
+						"query": "unknown query parameter \"InvalidParam\"",
+					}
 				}
 				assert.DeepEqual(t, got.Error, wantError)
 			}
+		})
+	}
+}
+
+// TestUnknownQueryParams tests that all endpoints reject unknown query parameters.
+func TestUnknownQueryParams(t *testing.T) {
+	ts := newTestServerWithMockUser(testApp.routes())
+	defer ts.Close()
+
+	tests := []struct {
+		name       string
+		method     string
+		urlPath    string
+		headers    http.Header
+		statusCode int
+	}{
+		{name: "healthcheck", method: http.MethodGet, urlPath: "/healthcheck?foo=bar", headers: nil, statusCode: http.StatusUnprocessableEntity},
+		{name: "cities list", method: http.MethodGet, urlPath: "/cities?foo=bar", headers: nil, statusCode: http.StatusUnprocessableEntity},
+		{name: "cities detail", method: http.MethodGet, urlPath: "/cities/15?foo=bar", headers: mocks.Headers, statusCode: http.StatusUnprocessableEntity},
+		{name: "countries list", method: http.MethodGet, urlPath: "/countries?foo=bar", headers: nil, statusCode: http.StatusUnprocessableEntity},
+		{name: "countries detail", method: http.MethodGet, urlPath: "/countries/AUS?foo=bar", headers: mocks.Headers, statusCode: http.StatusUnprocessableEntity},
+		{name: "register user", method: http.MethodPost, urlPath: "/users?foo=bar", headers: nil, statusCode: http.StatusUnprocessableEntity},
+		{name: "activate user", method: http.MethodPut, urlPath: "/users/activated?foo=bar", headers: nil, statusCode: http.StatusUnprocessableEntity},
+		{name: "authentication token", method: http.MethodPost, urlPath: "/tokens/authentication?foo=bar", headers: nil, statusCode: http.StatusUnprocessableEntity},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statusCode, header, body := ts.sendRequest(t, tt.method, tt.urlPath, tt.headers, nil)
+			assert.Equal(t, statusCode, tt.statusCode)
+			assert.Equal(t, header.Get("content-type"), "application/json")
+
+			var got gotResponse
+			unmarshalJSON(t, body, &got)
+			wantError := map[string]any{
+				"query": "unknown query parameter \"foo\"",
+			}
+			assert.DeepEqual(t, got.Error, wantError)
 		})
 	}
 }
