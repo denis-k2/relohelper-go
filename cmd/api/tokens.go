@@ -10,12 +10,18 @@ import (
 )
 
 func (app *application) createAuthenticationTokenHandler(w http.ResponseWriter, r *http.Request) {
+	err := validateAllowedQueryParams(r.URL.Query(), newIncludeSet())
+	if err != nil {
+		app.failedValidationResponse(w, r, map[string]string{"query": err.Error()})
+		return
+	}
+
 	var input struct {
 		Email    string `json:"email"`
 		Password string `json:"password"`
 	}
 
-	err := app.readJSON(w, r, &input)
+	err = app.readJSON(w, r, &input)
 	if err != nil {
 		app.badRequestResponse(w, r, err)
 		return

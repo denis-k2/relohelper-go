@@ -13,7 +13,29 @@ func (app *application) listCitiesHandler(w http.ResponseWriter, r *http.Request
 	v := validator.New()
 	qs := r.URL.Query()
 
-	if len(qs) > 0 {
+	err := validateAllowedQueryParams(qs, newIncludeSet("country_code", "include", "ids"))
+	if err != nil {
+		app.failedValidationResponse(w, r, map[string]string{"query": err.Error()})
+		return
+	}
+
+	_, err = parseInclude(qs, newIncludeSet("country"))
+	if err != nil {
+		app.failedValidationResponse(w, r, map[string]string{"include": err.Error()})
+		return
+	}
+
+	_, idsPresent, err := parseIDsInt64(qs, "ids", app.config.batch.maxIDs)
+	if err != nil {
+		app.failedValidationResponse(w, r, map[string]string{"ids": err.Error()})
+		return
+	}
+	if idsPresent {
+		app.errorResponse(w, r, http.StatusNotImplemented, "batch retrieval for cities by ids is not implemented yet")
+		return
+	}
+
+	if qs.Has("country_code") {
 		input.CountryCode = app.readString(qs, "country_code", "")
 		if data.ValidateFilters(v, input); !v.Valid() {
 			app.failedValidationResponse(w, r, v.Errors)
@@ -47,23 +69,22 @@ func (app *application) showCityHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var input struct {
-		numbeoCost    string
-		numbeoIndices string
-		avgClimate    string
-	}
-	v := validator.New()
 	qs := r.URL.Query()
-	input.numbeoCost = app.readString(qs, "numbeo_cost", "")
-	input.numbeoIndices = app.readString(qs, "numbeo_indices", "")
-	input.avgClimate = app.readString(qs, "avg_climate", "")
-	costEnabled := data.ValidateBoolQuery(v, input.numbeoCost)
-	indicesEnabled := data.ValidateBoolQuery(v, input.numbeoIndices)
-	climateEnabled := data.ValidateBoolQuery(v, input.avgClimate)
-	if !v.Valid() {
-		app.failedValidationResponse(w, r, v.Errors)
+	err = validateAllowedQueryParams(qs, newIncludeSet("include"))
+	if err != nil {
+		app.failedValidationResponse(w, r, map[string]string{"query": err.Error()})
 		return
 	}
+
+	include, err := parseInclude(qs, newIncludeSet("country", "numbeo_cost", "numbeo_indices", "avg_climate"))
+	if err != nil {
+		app.failedValidationResponse(w, r, map[string]string{"include": err.Error()})
+		return
+	}
+
+	costEnabled := include.Has("numbeo_cost")
+	indicesEnabled := include.Has("numbeo_indices")
+	climateEnabled := include.Has("avg_climate")
 
 	city, err := app.models.Cities.GetCityID(id)
 	if err != nil {
