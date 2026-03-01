@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -74,7 +75,7 @@ func (app *application) showCountryHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	input.CountryCode = chi.URLParam(r, "alpha3")
+	input.CountryCode = strings.ToUpper(chi.URLParam(r, "alpha3"))
 	include, err := parseInclude(qs, newIncludeSet("numbeo_indices", "legatum_indices"))
 	if err != nil {
 		app.failedValidationResponse(w, r, map[string]string{"include": err.Error()})

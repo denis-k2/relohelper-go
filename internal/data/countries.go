@@ -152,7 +152,7 @@ func (c CountryModel) GetCountry(countryCode string, include IncludeSet) (*Count
 							nic.avg_salary_usd,
 							to_char(nic.sys_updated_date, 'YYYY-MM-DD') AS last_update
 						FROM numbeo_index_by_country nic
-						WHERE LOWER(nic.country_code) = LOWER(ctr.country_code)
+						WHERE nic.country_code = ctr.country_code
 					) AS n
 				)
 				ELSE NULL
@@ -178,14 +178,14 @@ func (c CountryModel) GetCountry(countryCode string, include IncludeSet) (*Count
 							END AS key,
 							to_jsonb(li) - 'country_code' - 'pillar_name' AS value
 						FROM legatum_index li
-						WHERE LOWER(li.country_code) = LOWER(ctr.country_code)
+						WHERE li.country_code = ctr.country_code
 					) AS l
 					WHERE l.key IS NOT NULL
 				)
 				ELSE NULL
 			END AS legatum_indices
 		FROM country ctr
-		WHERE LOWER(ctr.country_code) = LOWER($1);`
+		WHERE ctr.country_code = $1;`
 
 	var (
 		country     Country
@@ -242,7 +242,7 @@ func (c CountryModel) GetCountriesByCodes(codes []string) (countries []*Country,
 	query := `
 		SELECT ctr.country_code, ctr.country
 		FROM country ctr
-		WHERE UPPER(ctr.country_code) = ANY($1)
+		WHERE ctr.country_code = ANY($1)
 		ORDER BY ctr.country_code;`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
