@@ -220,9 +220,9 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 			END AS numbeo_indices,
 			CASE
 				WHEN $5 THEN (
-					SELECT jsonb_agg(
+					SELECT jsonb_object_agg(
+						ac.climate_param,
 						jsonb_build_object(
-							'climate_param', ac.climate_param,
 							'january', ac.january,
 							'february', ac.february,
 							'march', ac.march,
@@ -298,11 +298,12 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 	}
 
 	if len(climateJSON) > 0 && string(climateJSON) != "null" {
-		climate, err := buildAvgClimateFromJSON(climateJSON)
-		if err != nil {
+		var climate AvgClimate
+		if err := json.Unmarshal(climateJSON, &climate); err != nil {
 			return nil, err
 		}
-		city.AvgClimate = climate
+		climate.Measures = measures
+		city.AvgClimate = &climate
 	}
 
 	return &city, nil
@@ -357,85 +358,4 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 	}
 
 	return cities, nil
-}
-
-type climateRow struct {
-	ClimateParam string   `json:"climate_param"`
-	January      *float64 `json:"january"`
-	February     *float64 `json:"february"`
-	March        *float64 `json:"march"`
-	April        *float64 `json:"april"`
-	May          *float64 `json:"may"`
-	June         *float64 `json:"june"`
-	July         *float64 `json:"july"`
-	August       *float64 `json:"august"`
-	September    *float64 `json:"september"`
-	October      *float64 `json:"october"`
-	November     *float64 `json:"november"`
-	December     *float64 `json:"december"`
-}
-
-func buildAvgClimateFromJSON(raw []byte) (*AvgClimate, error) {
-	var rows []climateRow
-	if err := json.Unmarshal(raw, &rows); err != nil {
-		return nil, err
-	}
-	if len(rows) == 0 {
-		return nil, nil
-	}
-
-	climate := &AvgClimate{Measures: measures}
-	for _, row := range rows {
-		monthly := MonthlyValue{
-			January:   row.January,
-			February:  row.February,
-			March:     row.March,
-			April:     row.April,
-			May:       row.May,
-			June:      row.June,
-			July:      row.July,
-			August:    row.August,
-			September: row.September,
-			October:   row.October,
-			November:  row.November,
-			December:  row.December,
-		}
-
-		switch row.ClimateParam {
-		case "high_temp":
-			climate.HighTemp = monthly
-		case "low_temp":
-			climate.LowTemp = monthly
-		case "pressure":
-			climate.Pressure = monthly
-		case "wind_speed":
-			climate.WindSpeed = monthly
-		case "humidity":
-			climate.Humidity = monthly
-		case "rainfall":
-			climate.Rainfall = monthly
-		case "rainfall_days":
-			climate.RainfallDays = monthly
-		case "snowfall":
-			climate.Snowfall = monthly
-		case "snowfall_days":
-			climate.SnowfallDays = monthly
-		case "sea_temp":
-			climate.SeaTemp = monthly
-		case "daylight":
-			climate.Daylight = monthly
-		case "sunshine":
-			climate.Sunshine = monthly
-		case "sunshine_days":
-			climate.SunshineDays = monthly
-		case "uv_index":
-			climate.UVIndex = monthly
-		case "cloud_cover":
-			climate.CloudCover = monthly
-		case "visibility":
-			climate.Visibility = monthly
-		}
-	}
-
-	return climate, nil
 }

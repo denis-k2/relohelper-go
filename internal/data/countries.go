@@ -159,47 +159,28 @@ func (c CountryModel) GetCountry(countryCode string, include IncludeSet) (*Count
 			END AS numbeo_indices,
 			CASE
 				WHEN $3 THEN (
-					SELECT jsonb_agg(
-						jsonb_build_object(
-							'pillar_name', li.pillar_name,
-							'rank_2007', li.rank_2007,
-							'rank_2008', li.rank_2008,
-							'rank_2009', li.rank_2009,
-							'rank_2010', li.rank_2010,
-							'rank_2011', li.rank_2011,
-							'rank_2012', li.rank_2012,
-							'rank_2013', li.rank_2013,
-							'rank_2014', li.rank_2014,
-							'rank_2015', li.rank_2015,
-							'rank_2016', li.rank_2016,
-							'rank_2017', li.rank_2017,
-							'rank_2018', li.rank_2018,
-							'rank_2019', li.rank_2019,
-							'rank_2020', li.rank_2020,
-							'rank_2021', li.rank_2021,
-							'rank_2022', li.rank_2022,
-							'rank_2023', li.rank_2023,
-							'score_2007', li.score_2007,
-							'score_2008', li.score_2008,
-							'score_2009', li.score_2009,
-							'score_2010', li.score_2010,
-							'score_2011', li.score_2011,
-							'score_2012', li.score_2012,
-							'score_2013', li.score_2013,
-							'score_2014', li.score_2014,
-							'score_2015', li.score_2015,
-							'score_2016', li.score_2016,
-							'score_2017', li.score_2017,
-							'score_2018', li.score_2018,
-							'score_2019', li.score_2019,
-							'score_2020', li.score_2020,
-							'score_2021', li.score_2021,
-							'score_2022', li.score_2022,
-							'score_2023', li.score_2023
-						)
-					)
-					FROM legatum_index li
-					WHERE LOWER(li.country_code) = LOWER(ctr.country_code)
+					SELECT jsonb_object_agg(l.key, l.value)
+					FROM (
+						SELECT
+							CASE li.pillar_name
+								WHEN 'Safety and Security' THEN 'safety_and_security'
+								WHEN 'Personal Freedom' THEN 'personal_freedom'
+								WHEN 'Governance' THEN 'governance'
+								WHEN 'Social Capital' THEN 'social_capital'
+								WHEN 'Investment Environment' THEN 'investment_invironment'
+								WHEN 'Enterprise Conditions' THEN 'enterprise_conditions'
+								WHEN 'Infrastructure and Market Access' THEN 'infrastructure_and_market_access'
+								WHEN 'Economic Quality' THEN 'economic_quality'
+								WHEN 'Living Conditions' THEN 'living_conditions'
+								WHEN 'Health' THEN 'health'
+								WHEN 'Education' THEN 'education'
+								WHEN 'Natural Environment' THEN 'natural_environment'
+							END AS key,
+							to_jsonb(li) - 'country_code' - 'pillar_name' AS value
+						FROM legatum_index li
+						WHERE LOWER(li.country_code) = LOWER(ctr.country_code)
+					) AS l
+					WHERE l.key IS NOT NULL
 				)
 				ELSE NULL
 			END AS legatum_indices
@@ -243,11 +224,11 @@ func (c CountryModel) GetCountry(countryCode string, include IncludeSet) (*Count
 	}
 
 	if len(legatumJSON) > 0 && string(legatumJSON) != "null" {
-		indices, err := buildLegatumIndicesFromJSON(legatumJSON)
-		if err != nil {
+		var indices LegatumCountryIndices
+		if err := json.Unmarshal(legatumJSON, &indices); err != nil {
 			return nil, err
 		}
-		country.LegatumIndices = indices
+		country.LegatumIndices = &indices
 	}
 
 	return &country, nil
@@ -294,51 +275,4 @@ func (c CountryModel) GetCountriesByCodes(codes []string) (countries []*Country,
 	}
 
 	return countries, nil
-}
-
-type legatumRow struct {
-	PillarName string `json:"pillar_name"`
-	RankAndScore
-}
-
-func buildLegatumIndicesFromJSON(raw []byte) (*LegatumCountryIndices, error) {
-	var rows []legatumRow
-	if err := json.Unmarshal(raw, &rows); err != nil {
-		return nil, err
-	}
-	if len(rows) == 0 {
-		return nil, nil
-	}
-
-	legatum := &LegatumCountryIndices{}
-	for _, row := range rows {
-		switch row.PillarName {
-		case "Safety and Security":
-			legatum.SafetyAndSecurity = row.RankAndScore
-		case "Personal Freedom":
-			legatum.PersonalFreedom = row.RankAndScore
-		case "Governance":
-			legatum.Governance = row.RankAndScore
-		case "Social Capital":
-			legatum.SocialCapital = row.RankAndScore
-		case "Investment Environment":
-			legatum.InvestmentEnvironment = row.RankAndScore
-		case "Enterprise Conditions":
-			legatum.EnterpriseConditions = row.RankAndScore
-		case "Infrastructure and Market Access":
-			legatum.InfrastructureAndMarketAccess = row.RankAndScore
-		case "Economic Quality":
-			legatum.EconomicQuality = row.RankAndScore
-		case "Living Conditions":
-			legatum.LivingConditions = row.RankAndScore
-		case "Health":
-			legatum.Health = row.RankAndScore
-		case "Education":
-			legatum.Education = row.RankAndScore
-		case "Natural Environment":
-			legatum.NaturalEnvironment = row.RankAndScore
-		}
-	}
-
-	return legatum, nil
 }
