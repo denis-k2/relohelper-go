@@ -6,25 +6,13 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/denis-k2/relohelper-go/internal/data"
 )
 
-type IncludeSet map[string]struct{}
+func newIncludeSet(values ...string) data.IncludeSet { return data.NewIncludeSet(values...) }
 
-func newIncludeSet(values ...string) IncludeSet {
-	set := make(IncludeSet, len(values))
-	for _, value := range values {
-		set[value] = struct{}{}
-	}
-
-	return set
-}
-
-func (s IncludeSet) Has(value string) bool {
-	_, ok := s[value]
-	return ok
-}
-
-func validateAllowedQueryParams(qs url.Values, allowed IncludeSet) error {
+func validateAllowedQueryParams(qs url.Values, allowed data.IncludeSet) error {
 	if len(qs) == 0 {
 		return nil
 	}
@@ -44,7 +32,7 @@ func validateAllowedQueryParams(qs url.Values, allowed IncludeSet) error {
 	return nil
 }
 
-func parseInclude(qs url.Values, allowed IncludeSet) (IncludeSet, error) {
+func parseInclude(qs url.Values, allowed data.IncludeSet) (data.IncludeSet, error) {
 	raw := strings.TrimSpace(qs.Get("include"))
 	if raw == "" {
 		return newIncludeSet(), nil

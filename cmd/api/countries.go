@@ -13,7 +13,7 @@ import (
 func (app *application) listCountriesHandler(w http.ResponseWriter, r *http.Request) {
 	qs := r.URL.Query()
 
-	err := validateAllowedQueryParams(qs, newIncludeSet("country_codes", "include"))
+	err := validateAllowedQueryParams(qs, newIncludeSet("ids", "include"))
 	if err != nil {
 		app.failedValidationResponse(w, r, map[string]string{"query": err.Error()})
 		return
@@ -24,17 +24,31 @@ func (app *application) listCountriesHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	_, idsPresent, err := parseIDsString(qs, "country_codes", app.config.batch.maxIDs)
+	codes, idsPresent, err := parseIDsString(qs, "ids", app.config.batch.maxIDs)
 	if err != nil {
-		app.failedValidationResponse(w, r, map[string]string{"country_codes": err.Error()})
+		app.failedValidationResponse(w, r, map[string]string{"ids": err.Error()})
 		return
 	}
 	if idsPresent {
-		app.errorResponse(w, r, http.StatusNotImplemented, "batch retrieval for countries by country_codes is not implemented yet")
+		countries, err := app.models.Countries.GetCountriesByCodes(codes)
+		if err != nil {
+			switch {
+			case errors.Is(err, data.ErrRecordNotFound):
+				app.notFoundResponse(w, r)
+			default:
+				app.serverErrorResponse(w, r, err)
+			}
+			return
+		}
+
+		err = app.writeJSON(w, http.StatusOK, envelope{"countries": countries}, nil)
+		if err != nil {
+			app.serverErrorResponse(w, r, err)
+		}
 		return
 	}
 
-	countries, err := app.models.Countries.GetCountryList()
+	countries, err := app.models.Countries.ListCountries()
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 		return
@@ -67,15 +81,12 @@ func (app *application) showCountryHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	numbeoIndicesEnabled := include.Has("numbeo_indices")
-	legatumIndicesEnabled := include.Has("legatum_indices")
-
 	if data.ValidateFilters(v, input.Filters); !v.Valid() {
 		app.failedValidationResponse(w, r, v.Errors)
 		return
 	}
 
-	country, err := app.models.Countries.GetCountry(input.CountryCode)
+	country, err := app.models.Countries.GetCountry(input.CountryCode, include)
 	if err != nil {
 		switch {
 		case errors.Is(err, data.ErrRecordNotFound):
@@ -84,32 +95,6 @@ func (app *application) showCountryHandler(w http.ResponseWriter, r *http.Reques
 			app.serverErrorResponse(w, r, err)
 		}
 		return
-	}
-
-	if numbeoIndicesEnabled {
-		numbeoIndices, err := app.models.Countries.GetNumbeoCountryIndicies(input.CountryCode)
-		switch {
-		case err == nil:
-			country.NumbeoIndices = numbeoIndices
-		case errors.Is(err, data.ErrRecordNotFound):
-			country.NumbeoIndices = nil
-		default:
-			app.serverErrorResponse(w, r, err)
-			return
-		}
-	}
-
-	if legatumIndicesEnabled {
-		legatumIndices, err := app.models.Countries.GetLegatumIndicies(input.CountryCode)
-		switch {
-		case err == nil:
-			country.LegatumIndices = legatumIndices
-		case errors.Is(err, data.ErrRecordNotFound):
-			country.LegatumIndices = nil
-		default:
-			app.serverErrorResponse(w, r, err)
-			return
-		}
 	}
 
 	env := envelope{"country": country}
