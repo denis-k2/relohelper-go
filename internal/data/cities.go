@@ -220,25 +220,39 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 			END AS numbeo_indices,
 			CASE
 				WHEN $5 THEN (
-					SELECT jsonb_object_agg(
-						ac.climate_param,
-						jsonb_build_object(
-							'january', ac.january,
-							'february', ac.february,
-							'march', ac.march,
-							'april', ac.april,
-							'may', ac.may,
-							'june', ac.june,
-							'july', ac.july,
-							'august', ac.august,
-							'september', ac.september,
-							'october', ac.october,
-							'november', ac.november,
-							'december', ac.december
-						)
-					)
-					FROM pivot_avg_climate ac
-					WHERE ac.city_id = c.city_id
+					SELECT jsonb_object_agg(metric_key, month_values)
+					FROM (
+						SELECT
+							m.metric_key,
+							jsonb_object_agg(
+								CASE ac.month
+									WHEN 1 THEN 'january'
+									WHEN 2 THEN 'february'
+									WHEN 3 THEN 'march'
+									WHEN 4 THEN 'april'
+									WHEN 5 THEN 'may'
+									WHEN 6 THEN 'june'
+									WHEN 7 THEN 'july'
+									WHEN 8 THEN 'august'
+									WHEN 9 THEN 'september'
+									WHEN 10 THEN 'october'
+									WHEN 11 THEN 'november'
+									WHEN 12 THEN 'december'
+								END,
+								m.metric_value
+								ORDER BY ac.month
+							) AS month_values
+						FROM avg_climate ac
+						CROSS JOIN LATERAL jsonb_each(
+							to_jsonb(ac)
+								- 'city_id'
+								- 'month'
+								- 'sys_updated_date'
+								- 'sys_updeted_by'
+						) AS m(metric_key, metric_value)
+						WHERE ac.city_id = c.city_id
+						GROUP BY m.metric_key
+					) AS climate_data
 				)
 				ELSE NULL
 			END AS avg_climate
