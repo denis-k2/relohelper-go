@@ -108,7 +108,7 @@ func (app *application) showCityHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	env := envelope{"city": city}
+	env := envelope{"city": newCityResponse(city, include)}
 
 	err = app.writeJSON(w, http.StatusOK, env, nil)
 	if err != nil {

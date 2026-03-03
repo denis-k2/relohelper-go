@@ -98,7 +98,7 @@ func (app *application) showCountryHandler(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	env := envelope{"country": country}
+	env := envelope{"country": newCountryResponse(country, include)}
 
 	err = app.writeJSON(w, http.StatusOK, env, nil)
 	if err != nil {
