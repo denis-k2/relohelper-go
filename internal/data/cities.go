@@ -3,8 +3,11 @@ package data
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type City struct {
@@ -106,17 +109,19 @@ type CityModel struct {
 	DB *sql.DB
 }
 
-func (c CityModel) GetCityList(countryСode string) (cities []*City, retErr error) {
+func (c CityModel) ListCities(countryCode string, include IncludeSet) (cities []*City, retErr error) {
 	query := `
-        SELECT city_id, city, state_code, country_code
-		FROM city
-		WHERE (LOWER(country_code) = LOWER($1) OR $1 = '')
-		ORDER BY city_id;`
+		SELECT c.city_id, c.city, c.state_code, c.country_code,
+		       CASE WHEN $2 THEN ctr.country ELSE '' END AS country
+		FROM city c
+		LEFT JOIN country ctr ON ctr.country_code = c.country_code
+		WHERE (LOWER(c.country_code) = LOWER($1) OR $1 = '')
+		ORDER BY c.city_id;`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := c.DB.QueryContext(ctx, query, countryСode)
+	rows, err := c.DB.QueryContext(ctx, query, countryCode, include.Has("country"))
 	if err != nil {
 		return nil, err
 	}
@@ -127,97 +132,214 @@ func (c CityModel) GetCityList(countryСode string) (cities []*City, retErr erro
 	}()
 
 	cities = []*City{}
-
-	dataFound := false
 	for rows.Next() {
-		dataFound = true
 		var city City
-
-		err := rows.Scan(
+		if err := rows.Scan(
 			&city.CityID,
 			&city.City,
 			&city.StateCode,
 			&city.CountryCode,
-		)
-
-		if err != nil {
+			&city.Country,
+		); err != nil {
 			return nil, err
 		}
-
 		cities = append(cities, &city)
 	}
 
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-
-	if !dataFound {
+	if len(cities) == 0 {
 		return nil, ErrRecordNotFound
 	}
 
 	return cities, nil
 }
 
-func (c CityModel) GetCityID(id int64) (*City, error) {
+func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 	if id < 1 {
 		return nil, ErrRecordNotFound
 	}
 
 	query := `
-        SELECT c.city_id , c.city, c.state_code , c.country_code, ctr.country
+		SELECT
+			c.city_id,
+			c.city,
+			c.state_code,
+			c.country_code,
+			CASE WHEN $2 THEN ctr.country ELSE '' END AS country,
+			CASE
+				WHEN $3 THEN (
+					SELECT CASE
+						WHEN COUNT(*) = 0 THEN NULL
+						ELSE jsonb_build_object(
+							'currency', MAX(ns.currency),
+							'last_update', to_char(MAX(ns.updated_date), 'YYYY-MM-DD'),
+							'prices', jsonb_agg(
+								jsonb_build_object(
+									'category', nc.category,
+									'param', np.param,
+									'cost', ns.cost,
+									'range_lower', lower(ns.range),
+									'range_upper', upper(ns.range)
+								)
+								ORDER BY nc.category, np.param
+							)
+						)
+					END
+					FROM numbeo_stat ns
+					JOIN numbeo_param np ON np.param_id = ns.param_id
+					JOIN numbeo_category nc ON nc.category_id = np.category_id
+					WHERE ns.city_id = c.city_id
+				)
+				ELSE NULL
+			END AS numbeo_cost,
+			CASE
+				WHEN $4 THEN (
+					SELECT row_to_json(n)
+					FROM (
+						SELECT
+							nic.cost_of_living,
+							nic.rent,
+							nic.cost_of_living_plus_rent,
+							nic.groceries,
+							nic.local_purchasing_power,
+							nic.quality_of_life,
+							nic.property_price_to_income_ratio,
+							nic.traffic_commute_time,
+							nic.climate,
+							nic.safety,
+							nic.health_care,
+							nic.pollution,
+							to_char(nic.sys_updated_date, 'YYYY-MM-DD') AS last_update
+						FROM numbeo_index_by_city nic
+						WHERE nic.city_id = c.city_id
+					) AS n
+				)
+				ELSE NULL
+			END AS numbeo_indices,
+			CASE
+				WHEN $5 THEN (
+					SELECT jsonb_object_agg(metric_key, month_values)
+					FROM (
+						SELECT
+							m.metric_key,
+							jsonb_object_agg(
+								CASE ac.month
+									WHEN 1 THEN 'january'
+									WHEN 2 THEN 'february'
+									WHEN 3 THEN 'march'
+									WHEN 4 THEN 'april'
+									WHEN 5 THEN 'may'
+									WHEN 6 THEN 'june'
+									WHEN 7 THEN 'july'
+									WHEN 8 THEN 'august'
+									WHEN 9 THEN 'september'
+									WHEN 10 THEN 'october'
+									WHEN 11 THEN 'november'
+									WHEN 12 THEN 'december'
+								END,
+								m.metric_value
+								ORDER BY ac.month
+							) AS month_values
+						FROM avg_climate ac
+						CROSS JOIN LATERAL jsonb_each(
+							to_jsonb(ac)
+								- 'city_id'
+								- 'month'
+								- 'sys_updated_date'
+								- 'sys_updeted_by'
+						) AS m(metric_key, metric_value)
+						WHERE ac.city_id = c.city_id
+						GROUP BY m.metric_key
+					) AS climate_data
+				)
+				ELSE NULL
+			END AS avg_climate
 		FROM city c
-		JOIN country ctr on c.country_code = ctr.country_code
+		LEFT JOIN country ctr ON ctr.country_code = c.country_code
 		WHERE c.city_id = $1;`
 
-	var city City
+	var (
+		city        City
+		costJSON    []byte
+		indicesJSON []byte
+		climateJSON []byte
+	)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := c.DB.QueryRowContext(ctx, query, id).Scan(
+	err := c.DB.QueryRowContext(
+		ctx,
+		query,
+		id,
+		include.Has("country"),
+		include.Has("numbeo_cost"),
+		include.Has("numbeo_indices"),
+		include.Has("avg_climate"),
+	).Scan(
 		&city.CityID,
 		&city.City,
 		&city.StateCode,
 		&city.CountryCode,
 		&city.Country,
+		&costJSON,
+		&indicesJSON,
+		&climateJSON,
 	)
-
 	if err != nil {
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrRecordNotFound
-		default:
+		}
+		return nil, err
+	}
+
+	if len(costJSON) > 0 {
+		var details CostDetails
+		if err := json.Unmarshal(costJSON, &details); err != nil {
 			return nil, err
 		}
+		city.NumbeoCost = &details
+	}
+
+	if len(indicesJSON) > 0 {
+		var details Indices
+		if err := json.Unmarshal(indicesJSON, &details); err != nil {
+			return nil, err
+		}
+		city.NumbeoIndices = &details
+	}
+
+	if len(climateJSON) > 0 && string(climateJSON) != "null" {
+		var climate AvgClimate
+		if err := json.Unmarshal(climateJSON, &climate); err != nil {
+			return nil, err
+		}
+		climate.Measures = measures
+		city.AvgClimate = &climate
 	}
 
 	return &city, nil
 }
 
-func (c CityModel) GetNumbeoCost(id int64) (result *CostDetails, retErr error) {
-	if id < 1 {
+func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*City, retErr error) {
+	if len(ids) == 0 {
 		return nil, ErrRecordNotFound
 	}
 
 	query := `
-		SELECT
-        	nc.category,
-        	np.param,
-        	ns.cost,
-        	lower(ns.range) AS lower_bound,
-			upper(ns.range) AS upper_bound,
-			ns.currency,
-        	to_char(ns.updated_date, 'YYYY-MM-DD')
-		FROM numbeo_stat ns
-		JOIN numbeo_param np ON ns.param_id = np.param_id
-		JOIN numbeo_category nc ON np.category_id = nc.category_id
-		WHERE ns.city_id = $1;`
-
-	var cost CostDetails
+		SELECT c.city_id, c.city, c.state_code, c.country_code,
+		       CASE WHEN $2 THEN ctr.country ELSE '' END AS country
+		FROM city c
+		LEFT JOIN country ctr ON ctr.country_code = c.country_code
+		WHERE c.city_id = ANY($1)
+		ORDER BY c.city_id;`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := c.DB.QueryContext(ctx, query, id)
+	rows, err := c.DB.QueryContext(ctx, query, pq.Array(ids), include.Has("country"))
 	if err != nil {
 		return nil, err
 	}
@@ -227,203 +349,27 @@ func (c CityModel) GetNumbeoCost(id int64) (result *CostDetails, retErr error) {
 		}
 	}()
 
-	dataFound := false
+	cities = []*City{}
 	for rows.Next() {
-		dataFound = true
-		var price Price
-		err := rows.Scan(
-			&price.Category,
-			&price.Param,
-			&price.Cost,
-			&price.RangeLower,
-			&price.RangeUpper,
-			&cost.Currency,
-			&cost.LastUpdate,
-		)
-		if err != nil {
+		var city City
+		if err := rows.Scan(
+			&city.CityID,
+			&city.City,
+			&city.StateCode,
+			&city.CountryCode,
+			&city.Country,
+		); err != nil {
 			return nil, err
 		}
-		cost.Prices = append(cost.Prices, price)
+		cities = append(cities, &city)
 	}
 
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-
-	if !dataFound {
+	if len(cities) == 0 {
 		return nil, ErrRecordNotFound
 	}
 
-	result = &cost
-
-	return result, nil
-}
-
-func (c CityModel) GetNumbeoIndicies(id int64) (*Indices, error) {
-	if id < 1 {
-		return nil, ErrRecordNotFound
-	}
-
-	query := `
-		SELECT
-			cost_of_living,
-			rent,
-			cost_of_living_plus_rent,
-			groceries,
-			local_purchasing_power,
-			quality_of_life,
-			property_price_to_income_ratio,
-			traffic_commute_time,
-			climate,
-			safety,
-			health_care,
-			pollution,
-			to_char(sys_updated_date, 'YYYY-MM-DD')
-		FROM public.numbeo_index_by_city
-		WHERE city_id = $1;`
-
-	var index Indices
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	err := c.DB.QueryRowContext(ctx, query, id).Scan(
-		&index.CostOfLiving,
-		&index.Rent,
-		&index.CostOfLivingPlusRent,
-		&index.Groceries,
-		&index.LocalPurchasingPower,
-		&index.QualityOfLife,
-		&index.PropertyPriceToIncomeRatio,
-		&index.TrafficCommuteTime,
-		&index.Climate,
-		&index.Safety,
-		&index.HealthCare,
-		&index.Pollution,
-		&index.LastUpdate,
-	)
-
-	if err != nil {
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			return nil, ErrRecordNotFound
-		default:
-			return nil, err
-		}
-	}
-
-	return &index, nil
-}
-
-func (c CityModel) GetAvgClimatePivot(id int64) (result *AvgClimate, retErr error) {
-	if id < 1 {
-		return nil, ErrRecordNotFound
-	}
-
-	query := `
-		SELECT
-			climate_param,
-			january,
-			february,
-			march,
-			april,
-			may,
-			june,
-			july,
-			august,
-			september,
-			october,
-			november,
-			december
-		FROM pivot_avg_climate
-		WHERE city_id = $1;`
-
-	var climate AvgClimate
-	climate.Measures = measures
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	rows, err := c.DB.QueryContext(ctx, query, id)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if err := rows.Close(); err != nil && retErr == nil {
-			retErr = err
-		}
-	}()
-
-	dataFound := false
-	for rows.Next() {
-		dataFound = true
-		var param string
-		var monthly MonthlyValue
-
-		err := rows.Scan(
-			&param,
-			&monthly.January,
-			&monthly.February,
-			&monthly.March,
-			&monthly.April,
-			&monthly.May,
-			&monthly.June,
-			&monthly.July,
-			&monthly.August,
-			&monthly.September,
-			&monthly.October,
-			&monthly.November,
-			&monthly.December,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		switch param {
-		case "high_temp":
-			climate.HighTemp = monthly
-		case "low_temp":
-			climate.LowTemp = monthly
-		case "pressure":
-			climate.Pressure = monthly
-		case "wind_speed":
-			climate.WindSpeed = monthly
-		case "humidity":
-			climate.Humidity = monthly
-		case "rainfall":
-			climate.Rainfall = monthly
-		case "rainfall_days":
-			climate.RainfallDays = monthly
-		case "snowfall":
-			climate.Snowfall = monthly
-		case "snowfall_days":
-			climate.SnowfallDays = monthly
-		case "sea_temp":
-			climate.SeaTemp = monthly
-		case "daylight":
-			climate.Daylight = monthly
-		case "sunshine":
-			climate.Sunshine = monthly
-		case "sunshine_days":
-			climate.SunshineDays = monthly
-		case "uv_index":
-			climate.UVIndex = monthly
-		case "cloud_cover":
-			climate.CloudCover = monthly
-		case "visibility":
-			climate.Visibility = monthly
-		}
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	if !dataFound {
-		return nil, ErrRecordNotFound
-	}
-
-	result = &climate
-
-	return result, nil
+	return cities, nil
 }

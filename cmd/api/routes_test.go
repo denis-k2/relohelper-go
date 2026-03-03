@@ -159,6 +159,22 @@ func TestCitiesByCountry(t *testing.T) {
 	}
 }
 
+// TestCitiesBatchByIDs tests batch retrieval for "/cities?ids=...".
+func TestCitiesBatchByIDs(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	statusCode, header, body := ts.get(t, "/cities?ids=11,94,11")
+	assert.Equal(t, statusCode, http.StatusOK)
+	assert.Equal(t, header.Get("content-type"), "application/json")
+
+	var got gotResponse
+	unmarshalJSON(t, body, &got)
+	assert.Equal(t, len(got.Cities), 2)
+	assert.Equal(t, got.Cities[0].CityID, int64(11))
+	assert.Equal(t, got.Cities[1].CityID, int64(94))
+}
+
 // TestCity tests the “/cities/:id” endpoint.
 func TestCityID(t *testing.T) {
 	ts := newTestServerWithMockUser(testApp.routes())
@@ -401,6 +417,22 @@ func TestCountries(t *testing.T) {
 			assert.DeepEqual(t, got.Countries[tt.index], tt.country)
 		})
 	}
+}
+
+// TestCountriesBatchByCodes tests batch retrieval for "/countries?ids=...".
+func TestCountriesBatchByCodes(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	statusCode, header, body := ts.get(t, "/countries?ids=usa,rus,usa")
+	assert.Equal(t, statusCode, http.StatusOK)
+	assert.Equal(t, header.Get("content-type"), "application/json")
+
+	var got gotResponse
+	unmarshalJSON(t, body, &got)
+	assert.Equal(t, len(got.Countries), 2)
+	assert.Equal(t, got.Countries[0].Code, "RUS")
+	assert.Equal(t, got.Countries[1].Code, "USA")
 }
 
 // TestCountry tests the “/countries/:alpha3" endpoint.

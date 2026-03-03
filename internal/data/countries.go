@@ -3,8 +3,11 @@ package data
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type Country struct {
@@ -88,9 +91,9 @@ type CountryModel struct {
 	DB *sql.DB
 }
 
-func (c CountryModel) GetCountryList() (countries []*Country, retErr error) {
+func (c CountryModel) ListCountries() (countries []*Country, retErr error) {
 	query := `
-        SELECT country_code, country
+		SELECT country_code, country
 		FROM country
 		ORDER BY country_code;`
 
@@ -108,19 +111,11 @@ func (c CountryModel) GetCountryList() (countries []*Country, retErr error) {
 	}()
 
 	countries = []*Country{}
-
 	for rows.Next() {
 		var country Country
-
-		err := rows.Scan(
-			&country.Code,
-			&country.Name,
-		)
-
-		if err != nil {
+		if err := rows.Scan(&country.Code, &country.Name); err != nil {
 			return nil, err
 		}
-
 		countries = append(countries, &country)
 	}
 
@@ -131,106 +126,129 @@ func (c CountryModel) GetCountryList() (countries []*Country, retErr error) {
 	return countries, nil
 }
 
-func (c CountryModel) GetCountry(countryCode string) (*Country, error) {
+func (c CountryModel) GetCountry(countryCode string, include IncludeSet) (*Country, error) {
 	query := `
-		SELECT country_code, country
-		FROM country
-		WHERE LOWER(country_code) = LOWER($1);`
+		SELECT
+			ctr.country_code,
+			ctr.country,
+			CASE
+				WHEN $2 THEN (
+					SELECT row_to_json(n)
+					FROM (
+						SELECT
+							nic.cost_of_living,
+							nic.rent,
+							nic.cost_of_living_plus_rent,
+							nic.groceries,
+							nic.restaurant_price,
+							nic.local_purchasing_power,
+							nic.quality_of_life,
+							nic.property_price_to_income_ratio,
+							nic.traffic_commute_time,
+							nic.climate,
+							nic.safety,
+							nic.health_care,
+							nic.pollution,
+							nic.avg_salary_usd,
+							to_char(nic.sys_updated_date, 'YYYY-MM-DD') AS last_update
+						FROM numbeo_index_by_country nic
+						WHERE nic.country_code = ctr.country_code
+					) AS n
+				)
+				ELSE NULL
+			END AS numbeo_indices,
+			CASE
+				WHEN $3 THEN (
+					SELECT jsonb_object_agg(l.key, l.value)
+					FROM (
+						SELECT
+							CASE li.pillar_name
+								WHEN 'Safety and Security' THEN 'safety_and_security'
+								WHEN 'Personal Freedom' THEN 'personal_freedom'
+								WHEN 'Governance' THEN 'governance'
+								WHEN 'Social Capital' THEN 'social_capital'
+								WHEN 'Investment Environment' THEN 'investment_invironment'
+								WHEN 'Enterprise Conditions' THEN 'enterprise_conditions'
+								WHEN 'Infrastructure and Market Access' THEN 'infrastructure_and_market_access'
+								WHEN 'Economic Quality' THEN 'economic_quality'
+								WHEN 'Living Conditions' THEN 'living_conditions'
+								WHEN 'Health' THEN 'health'
+								WHEN 'Education' THEN 'education'
+								WHEN 'Natural Environment' THEN 'natural_environment'
+							END AS key,
+							to_jsonb(li) - 'country_code' - 'pillar_name' AS value
+						FROM legatum_index li
+						WHERE li.country_code = ctr.country_code
+					) AS l
+					WHERE l.key IS NOT NULL
+				)
+				ELSE NULL
+			END AS legatum_indices
+		FROM country ctr
+		WHERE ctr.country_code = $1;`
 
-	var country Country
+	var (
+		country     Country
+		numbeoJSON  []byte
+		legatumJSON []byte
+	)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := c.DB.QueryRowContext(ctx, query, countryCode).Scan(
+	err := c.DB.QueryRowContext(
+		ctx,
+		query,
+		countryCode,
+		include.Has("numbeo_indices"),
+		include.Has("legatum_indices"),
+	).Scan(
 		&country.Code,
 		&country.Name,
+		&numbeoJSON,
+		&legatumJSON,
 	)
-
 	if err != nil {
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrRecordNotFound
-		default:
+		}
+		return nil, err
+	}
+
+	if len(numbeoJSON) > 0 {
+		var indices NumbeoCountryIndicies
+		if err := json.Unmarshal(numbeoJSON, &indices); err != nil {
 			return nil, err
 		}
+		country.NumbeoIndices = &indices
+	}
+
+	if len(legatumJSON) > 0 && string(legatumJSON) != "null" {
+		var indices LegatumCountryIndices
+		if err := json.Unmarshal(legatumJSON, &indices); err != nil {
+			return nil, err
+		}
+		country.LegatumIndices = &indices
 	}
 
 	return &country, nil
 }
 
-func (c CountryModel) GetNumbeoCountryIndicies(country_code string) (*NumbeoCountryIndicies, error) {
-	query := `
-		SELECT
-			cost_of_living,
-			rent,
-			cost_of_living_plus_rent,
-			groceries,
-			restaurant_price,
-			local_purchasing_power,
-			quality_of_life,
-			property_price_to_income_ratio,
-			traffic_commute_time,
-			climate,
-			safety,
-			health_care,
-			pollution,
-			avg_salary_usd,
-			to_char(sys_updated_date, 'YYYY-MM-DD')
-		FROM numbeo_index_by_country
-		WHERE LOWER(country_code) = LOWER($1);`
-
-	var index NumbeoCountryIndicies
-
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	err := c.DB.QueryRowContext(ctx, query, country_code).Scan(
-		&index.CostOfLiving,
-		&index.Rent,
-		&index.CostOfLivingPlusRent,
-		&index.Groceries,
-		&index.RestaurantPrice,
-		&index.LocalPurchasingPower,
-		&index.QualityOfLife,
-		&index.PropertyPriceToIncomeRatio,
-		&index.TrafficCommuteTime,
-		&index.Climate,
-		&index.Safety,
-		&index.HealthCare,
-		&index.Pollution,
-		&index.AvgSalaryUSD,
-		&index.LastUpdate,
-	)
-
-	if err != nil {
-		switch {
-		case errors.Is(err, sql.ErrNoRows):
-			return nil, ErrRecordNotFound
-		default:
-			return nil, err
-		}
+func (c CountryModel) GetCountriesByCodes(codes []string) (countries []*Country, retErr error) {
+	if len(codes) == 0 {
+		return nil, ErrRecordNotFound
 	}
 
-	return &index, nil
-}
-
-func (c CountryModel) GetLegatumIndicies(country_code string) (result *LegatumCountryIndices, retErr error) {
 	query := `
-	SELECT
-		pillar_name,
-		rank_2007, rank_2008, rank_2009, rank_2010, rank_2011, rank_2012, rank_2013, rank_2014,
-		rank_2015, rank_2016, rank_2017, rank_2018, rank_2019, rank_2020, rank_2021, rank_2022, rank_2023,
-		score_2007, score_2008, score_2009, score_2010, score_2011, score_2012, score_2013, score_2014,
-		score_2015, score_2016, score_2017, score_2018, score_2019, score_2020, score_2021, score_2022, score_2023
-	FROM legatum_index
-	WHERE LOWER(country_code) = LOWER($1);`
-
-	var legatum LegatumCountryIndices
+		SELECT ctr.country_code, ctr.country
+		FROM country ctr
+		WHERE ctr.country_code = ANY($1)
+		ORDER BY ctr.country_code;`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := c.DB.QueryContext(ctx, query, country_code)
+	rows, err := c.DB.QueryContext(ctx, query, pq.Array(codes))
 	if err != nil {
 		return nil, err
 	}
@@ -240,90 +258,21 @@ func (c CountryModel) GetLegatumIndicies(country_code string) (result *LegatumCo
 		}
 	}()
 
-	dataFound := false
+	countries = []*Country{}
 	for rows.Next() {
-		dataFound = true
-		var pillarName string
-		var rankScore RankAndScore
-
-		err := rows.Scan(
-			&pillarName,
-			&rankScore.Rank2007,
-			&rankScore.Rank2008,
-			&rankScore.Rank2009,
-			&rankScore.Rank2010,
-			&rankScore.Rank2011,
-			&rankScore.Rank2012,
-			&rankScore.Rank2013,
-			&rankScore.Rank2014,
-			&rankScore.Rank2015,
-			&rankScore.Rank2016,
-			&rankScore.Rank2017,
-			&rankScore.Rank2018,
-			&rankScore.Rank2019,
-			&rankScore.Rank2020,
-			&rankScore.Rank2021,
-			&rankScore.Rank2022,
-			&rankScore.Rank2023,
-			&rankScore.Score2007,
-			&rankScore.Score2008,
-			&rankScore.Score2009,
-			&rankScore.Score2010,
-			&rankScore.Score2011,
-			&rankScore.Score2012,
-			&rankScore.Score2013,
-			&rankScore.Score2014,
-			&rankScore.Score2015,
-			&rankScore.Score2016,
-			&rankScore.Score2017,
-			&rankScore.Score2018,
-			&rankScore.Score2019,
-			&rankScore.Score2020,
-			&rankScore.Score2021,
-			&rankScore.Score2022,
-			&rankScore.Score2023,
-		)
-		if err != nil {
+		var country Country
+		if err := rows.Scan(&country.Code, &country.Name); err != nil {
 			return nil, err
 		}
-
-		switch pillarName {
-		case "Safety and Security":
-			legatum.SafetyAndSecurity = rankScore
-		case "Personal Freedom":
-			legatum.PersonalFreedom = rankScore
-		case "Governance":
-			legatum.Governance = rankScore
-		case "Social Capital":
-			legatum.SocialCapital = rankScore
-		case "Investment Environment":
-			legatum.InvestmentEnvironment = rankScore
-		case "Enterprise Conditions":
-			legatum.EnterpriseConditions = rankScore
-		case "Infrastructure and Market Access":
-			legatum.InfrastructureAndMarketAccess = rankScore
-		case "Economic Quality":
-			legatum.EconomicQuality = rankScore
-		case "Living Conditions":
-			legatum.LivingConditions = rankScore
-		case "Health":
-			legatum.Health = rankScore
-		case "Education":
-			legatum.Education = rankScore
-		case "Natural Environment":
-			legatum.NaturalEnvironment = rankScore
-		}
+		countries = append(countries, &country)
 	}
 
 	if err = rows.Err(); err != nil {
 		return nil, err
 	}
-
-	if !dataFound {
+	if len(countries) == 0 {
 		return nil, ErrRecordNotFound
 	}
 
-	result = &legatum
-
-	return result, nil
+	return countries, nil
 }
