@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/lib/pq"
@@ -52,57 +53,41 @@ type Indices struct {
 }
 
 type AvgClimate struct {
-	HighTemp     MonthlyValue      `json:"high_temp"`
-	LowTemp      MonthlyValue      `json:"low_temp"`
-	Pressure     MonthlyValue      `json:"pressure"`
-	WindSpeed    MonthlyValue      `json:"wind_speed"`
-	Humidity     MonthlyValue      `json:"humidity"`
-	Rainfall     MonthlyValue      `json:"rainfall"`
-	RainfallDays MonthlyValue      `json:"rainfall_days"`
-	Snowfall     MonthlyValue      `json:"snowfall"`
-	SnowfallDays MonthlyValue      `json:"snowfall_days"`
-	SeaTemp      MonthlyValue      `json:"sea_temp"`
-	Daylight     MonthlyValue      `json:"daylight"`
-	Sunshine     MonthlyValue      `json:"sunshine"`
-	SunshineDays MonthlyValue      `json:"sunshine_days"`
-	UVIndex      MonthlyValue      `json:"uv_index"`
-	CloudCover   MonthlyValue      `json:"cloud_cover"`
-	Visibility   MonthlyValue      `json:"visibility"`
-	Measures     map[string]string `json:"measures"`
+	HighTemp     [12]*float64 `json:"high_temp"`
+	LowTemp      [12]*float64 `json:"low_temp"`
+	Pressure     [12]*float64 `json:"pressure"`
+	WindSpeed    [12]*float64 `json:"wind_speed"`
+	Humidity     [12]*float64 `json:"humidity"`
+	Rainfall     [12]*float64 `json:"rainfall"`
+	RainfallDays [12]*float64 `json:"rainfall_days"`
+	Snowfall     [12]*float64 `json:"snowfall"`
+	SnowfallDays [12]*float64 `json:"snowfall_days"`
+	SeaTemp      [12]*float64 `json:"sea_temp"`
+	Daylight     [12]*float64 `json:"daylight"`
+	Sunshine     [12]*float64 `json:"sunshine"`
+	SunshineDays [12]*float64 `json:"sunshine_days"`
+	UVIndex      [12]*float64 `json:"uv_index"`
+	CloudCover   [12]*float64 `json:"cloud_cover"`
+	Visibility   [12]*float64 `json:"visibility"`
 }
 
-type MonthlyValue struct {
-	January   *float64 `json:"january"`
-	February  *float64 `json:"february"`
-	March     *float64 `json:"march"`
-	April     *float64 `json:"april"`
-	May       *float64 `json:"may"`
-	June      *float64 `json:"june"`
-	July      *float64 `json:"july"`
-	August    *float64 `json:"august"`
-	September *float64 `json:"september"`
-	October   *float64 `json:"october"`
-	November  *float64 `json:"november"`
-	December  *float64 `json:"december"`
-}
-
-var measures = map[string]string{
-	"high_temp":     "Average high temperature, °C",
-	"low_temp":      "Average low temperature, °C",
-	"pressure":      "Average pressure, mbar",
-	"wind_speed":    "Average wind speed, km/h",
-	"humidity":      "Average humidity, %",
-	"rainfall":      "Average rainfall, mm",
-	"rainfall_days": "Average rainfall days, days",
-	"snowfall":      "Average snowfall, mm",
-	"snowfall_days": "Average snowfall days, days",
-	"sea_temp":      "Average sea temperature, °C",
-	"daylight":      "Average daylight, hours",
-	"sunshine":      "Average sunshine, hours",
-	"sunshine_days": "Average sunshine days, days",
-	"uv_index":      "Average UV index",
-	"cloud_cover":   "Average cloud cover, %",
-	"visibility":    "Average visibility, km",
+type avgClimateRaw struct {
+	HighTemp     []*float64 `json:"high_temp"`
+	LowTemp      []*float64 `json:"low_temp"`
+	Pressure     []*float64 `json:"pressure"`
+	WindSpeed    []*float64 `json:"wind_speed"`
+	Humidity     []*float64 `json:"humidity"`
+	Rainfall     []*float64 `json:"rainfall"`
+	RainfallDays []*float64 `json:"rainfall_days"`
+	Snowfall     []*float64 `json:"snowfall"`
+	SnowfallDays []*float64 `json:"snowfall_days"`
+	SeaTemp      []*float64 `json:"sea_temp"`
+	Daylight     []*float64 `json:"daylight"`
+	Sunshine     []*float64 `json:"sunshine"`
+	SunshineDays []*float64 `json:"sunshine_days"`
+	UVIndex      []*float64 `json:"uv_index"`
+	CloudCover   []*float64 `json:"cloud_cover"`
+	Visibility   []*float64 `json:"visibility"`
 }
 
 type CityModel struct {
@@ -220,39 +205,45 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 			END AS numbeo_indices,
 			CASE
 				WHEN $5 THEN (
-					SELECT jsonb_object_agg(metric_key, month_values)
-					FROM (
+					WITH climate_rows AS (
+						SELECT *
+						FROM avg_climate ac
+						WHERE ac.city_id = c.city_id
+					),
+					climate_stats AS (
+						SELECT
+							COUNT(*) AS row_count,
+							COUNT(DISTINCT month) AS unique_month_count,
+							MIN(month) AS min_month,
+							MAX(month) AS max_month
+						FROM climate_rows
+					),
+					climate_data AS (
 						SELECT
 							m.metric_key,
-							jsonb_object_agg(
-								CASE ac.month
-									WHEN 1 THEN 'january'
-									WHEN 2 THEN 'february'
-									WHEN 3 THEN 'march'
-									WHEN 4 THEN 'april'
-									WHEN 5 THEN 'may'
-									WHEN 6 THEN 'june'
-									WHEN 7 THEN 'july'
-									WHEN 8 THEN 'august'
-									WHEN 9 THEN 'september'
-									WHEN 10 THEN 'october'
-									WHEN 11 THEN 'november'
-									WHEN 12 THEN 'december'
-								END,
-								m.metric_value
-								ORDER BY ac.month
-							) AS month_values
-						FROM avg_climate ac
+							jsonb_agg(m.metric_value ORDER BY cr.month) AS month_values
+						FROM climate_rows cr
 						CROSS JOIN LATERAL jsonb_each(
-							to_jsonb(ac)
+							to_jsonb(cr)
 								- 'city_id'
 								- 'month'
 								- 'sys_updated_date'
 								- 'sys_updeted_by'
 						) AS m(metric_key, metric_value)
-						WHERE ac.city_id = c.city_id
 						GROUP BY m.metric_key
-					) AS climate_data
+					)
+					SELECT
+						CASE
+							WHEN s.row_count = 0
+							THEN NULL
+							WHEN s.row_count = 12
+								AND s.unique_month_count = 12
+								AND s.min_month = 1
+								AND s.max_month = 12
+							THEN (SELECT jsonb_object_agg(metric_key, month_values) FROM climate_data)
+							ELSE jsonb_build_object('__invalid_structure__', true)
+						END
+					FROM climate_stats s
 				)
 				ELSE NULL
 			END AS avg_climate
@@ -312,12 +303,11 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 	}
 
 	if len(climateJSON) > 0 && string(climateJSON) != "null" {
-		var climate AvgClimate
-		if err := json.Unmarshal(climateJSON, &climate); err != nil {
+		climate, err := decodeAvgClimateSeries(id, climateJSON)
+		if err != nil {
 			return nil, err
 		}
-		climate.Measures = measures
-		city.AvgClimate = &climate
+		city.AvgClimate = climate
 	}
 
 	return &city, nil
@@ -372,4 +362,61 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 	}
 
 	return cities, nil
+}
+
+func decodeAvgClimateSeries(cityID int64, rawJSON []byte) (*AvgClimate, error) {
+	var raw avgClimateRaw
+	if err := json.Unmarshal(rawJSON, &raw); err != nil {
+		return nil, err
+	}
+
+	series := map[string][]*float64{
+		"high_temp":     raw.HighTemp,
+		"low_temp":      raw.LowTemp,
+		"pressure":      raw.Pressure,
+		"wind_speed":    raw.WindSpeed,
+		"humidity":      raw.Humidity,
+		"rainfall":      raw.Rainfall,
+		"rainfall_days": raw.RainfallDays,
+		"snowfall":      raw.Snowfall,
+		"snowfall_days": raw.SnowfallDays,
+		"sea_temp":      raw.SeaTemp,
+		"daylight":      raw.Daylight,
+		"sunshine":      raw.Sunshine,
+		"sunshine_days": raw.SunshineDays,
+		"uv_index":      raw.UVIndex,
+		"cloud_cover":   raw.CloudCover,
+		"visibility":    raw.Visibility,
+	}
+
+	for metric, values := range series {
+		if len(values) != 12 {
+			return nil, fmt.Errorf("invalid avg_climate series for city_id=%d metric=%s: got %d values, expected 12", cityID, metric, len(values))
+		}
+	}
+
+	return &AvgClimate{
+		HighTemp:     toMonthArray(raw.HighTemp),
+		LowTemp:      toMonthArray(raw.LowTemp),
+		Pressure:     toMonthArray(raw.Pressure),
+		WindSpeed:    toMonthArray(raw.WindSpeed),
+		Humidity:     toMonthArray(raw.Humidity),
+		Rainfall:     toMonthArray(raw.Rainfall),
+		RainfallDays: toMonthArray(raw.RainfallDays),
+		Snowfall:     toMonthArray(raw.Snowfall),
+		SnowfallDays: toMonthArray(raw.SnowfallDays),
+		SeaTemp:      toMonthArray(raw.SeaTemp),
+		Daylight:     toMonthArray(raw.Daylight),
+		Sunshine:     toMonthArray(raw.Sunshine),
+		SunshineDays: toMonthArray(raw.SunshineDays),
+		UVIndex:      toMonthArray(raw.UVIndex),
+		CloudCover:   toMonthArray(raw.CloudCover),
+		Visibility:   toMonthArray(raw.Visibility),
+	}, nil
+}
+
+func toMonthArray(values []*float64) [12]*float64 {
+	var result [12]*float64
+	copy(result[:], values)
+	return result
 }
