@@ -234,6 +234,8 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 					)
 					SELECT
 						CASE
+							WHEN s.row_count = 0
+							THEN NULL
 							WHEN s.row_count = 12
 								AND s.unique_month_count = 12
 								AND s.min_month = 1
