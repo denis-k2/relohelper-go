@@ -637,6 +637,40 @@ func jsonArrayObjectIsNullByID(body []byte, rootKey, idKey string, id int64, key
 	return false
 }
 
+func jsonArrayObjectHasKeyByStringID(body []byte, rootKey, idKey, id, key string) bool {
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return false
+	}
+
+	rootRaw, ok := payload[rootKey]
+	if !ok {
+		return false
+	}
+
+	var items []map[string]json.RawMessage
+	if err := json.Unmarshal(rootRaw, &items); err != nil {
+		return false
+	}
+
+	for _, item := range items {
+		idRaw, ok := item[idKey]
+		if !ok {
+			continue
+		}
+
+		var gotID string
+		if err := json.Unmarshal(idRaw, &gotID); err != nil || gotID != id {
+			continue
+		}
+
+		_, exists := item[key]
+		return exists
+	}
+
+	return false
+}
+
 // TestCountries tests the “/countries" endpoint.
 func TestCountries(t *testing.T) {
 	ts := newTestServer(testApp.routes())
@@ -684,12 +718,12 @@ func TestCountries(t *testing.T) {
 	}
 }
 
-// TestCountriesBatchByCodes tests batch retrieval for "/countries?ids=...".
+// TestCountriesBatchByCodes tests batch retrieval for "/countries?country_codes=...".
 func TestCountriesBatchByCodes(t *testing.T) {
 	ts := newTestServer(testApp.routes())
 	defer ts.Close()
 
-	statusCode, header, body := ts.get(t, "/countries?ids=usa,rus,usa")
+	statusCode, header, body := ts.get(t, "/countries?country_codes=usa,rus,usa")
 	assert.Equal(t, statusCode, http.StatusOK)
 	assert.Equal(t, header.Get("content-type"), "application/json")
 
@@ -698,6 +732,46 @@ func TestCountriesBatchByCodes(t *testing.T) {
 	assert.Equal(t, len(got.Countries), 2)
 	assert.Equal(t, got.Countries[0].Code, "RUS")
 	assert.Equal(t, got.Countries[1].Code, "USA")
+}
+
+// TestCountriesBatchByCodesWithInclude tests include behavior for "/countries?country_codes=...&include=...".
+func TestCountriesBatchByCodesWithInclude(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	statusCode, header, body := ts.get(t, "/countries?country_codes=USA,CAN&include=numbeo_indices")
+	assert.Equal(t, statusCode, http.StatusOK)
+	assert.Equal(t, header.Get("content-type"), "application/json")
+	assert.Equal(t, jsonArrayObjectHasKeyByStringID(body, "countries", "country_code", "USA", "numbeo_indices"), true)
+	assert.Equal(t, jsonArrayObjectHasKeyByStringID(body, "countries", "country_code", "CAN", "numbeo_indices"), true)
+
+	statusCode, header, body = ts.get(t, "/countries?country_codes=USA,CAN&include=legatum_indices")
+	assert.Equal(t, statusCode, http.StatusOK)
+	assert.Equal(t, header.Get("content-type"), "application/json")
+	assert.Equal(t, jsonArrayObjectHasKeyByStringID(body, "countries", "country_code", "USA", "legatum_indices"), true)
+	assert.Equal(t, jsonArrayObjectHasKeyByStringID(body, "countries", "country_code", "CAN", "legatum_indices"), true)
+}
+
+// TestCountriesBatchByCodesLimit tests batch country_codes limit.
+func TestCountriesBatchByCodesLimit(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	rawCodes := make([]string, 0, 21)
+	for i := 0; i < 21; i++ {
+		rawCodes = append(rawCodes, fmt.Sprintf("C%02d", i))
+	}
+
+	urlPath := fmt.Sprintf("/countries?country_codes=%s&include=numbeo_indices", strings.Join(rawCodes, ","))
+	statusCode, header, body := ts.get(t, urlPath)
+	assert.Equal(t, statusCode, http.StatusUnprocessableEntity)
+	assert.Equal(t, header.Get("content-type"), "application/json")
+
+	var got gotResponse
+	unmarshalJSON(t, body, &got)
+	assert.DeepEqual(t, got.Error, map[string]any{
+		"country_codes": "country_codes cannot contain more than 20 unique values",
+	})
 }
 
 // TestCountry tests the “/countries/:alpha3" endpoint.

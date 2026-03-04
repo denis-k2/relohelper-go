@@ -14,24 +14,26 @@ import (
 func (app *application) listCountriesHandler(w http.ResponseWriter, r *http.Request) {
 	qs := r.URL.Query()
 
-	err := validateAllowedQueryParams(qs, newIncludeSet("ids", "include"))
+	err := validateAllowedQueryParams(qs, newIncludeSet("country_codes", "include"))
 	if err != nil {
 		app.failedValidationResponse(w, r, map[string]string{"query": err.Error()})
 		return
 	}
 
-	if qs.Has("include") {
-		app.failedValidationResponse(w, r, map[string]string{"include": "include is not supported for countries list endpoint"})
+	codes, countryCodesPresent, err := parseIDsString(qs, "country_codes", 20)
+	if err != nil {
+		app.failedValidationResponse(w, r, map[string]string{"country_codes": err.Error()})
 		return
 	}
 
-	codes, idsPresent, err := parseIDsString(qs, "ids", app.config.batch.maxIDs)
+	include, err := parseInclude(qs, newIncludeSet("numbeo_indices", "legatum_indices"))
 	if err != nil {
-		app.failedValidationResponse(w, r, map[string]string{"ids": err.Error()})
+		app.failedValidationResponse(w, r, map[string]string{"include": err.Error()})
 		return
 	}
-	if idsPresent {
-		countries, err := app.models.Countries.GetCountriesByCodes(codes)
+
+	if countryCodesPresent {
+		countries, err := app.models.Countries.GetCountriesByCodes(codes, include)
 		if err != nil {
 			switch {
 			case errors.Is(err, data.ErrRecordNotFound):
@@ -42,10 +44,20 @@ func (app *application) listCountriesHandler(w http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		err = app.writeJSON(w, http.StatusOK, envelope{"countries": countries}, nil)
+		resp := make([]countryResponse, 0, len(countries))
+		for _, country := range countries {
+			resp = append(resp, newCountryResponse(country, include))
+		}
+
+		err = app.writeJSON(w, http.StatusOK, envelope{"countries": resp}, nil)
 		if err != nil {
 			app.serverErrorResponse(w, r, err)
 		}
+		return
+	}
+
+	if qs.Has("include") {
+		app.failedValidationResponse(w, r, map[string]string{"include": "include is supported only for countries batch endpoint with country_codes"})
 		return
 	}
 

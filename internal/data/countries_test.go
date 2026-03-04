@@ -39,7 +39,7 @@ func TestGetCountriesByCodes(t *testing.T) {
 	db := newTestDB(t)
 	models := NewModels(db)
 
-	countries, err := models.Countries.GetCountriesByCodes([]string{"USA", "RUS", "USA"})
+	countries, err := models.Countries.GetCountriesByCodes([]string{"USA", "RUS", "USA"}, NewIncludeSet())
 	if err != nil {
 		t.Fatal(err)
 	}

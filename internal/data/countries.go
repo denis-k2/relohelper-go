@@ -234,7 +234,7 @@ func (c CountryModel) GetCountry(countryCode string, include IncludeSet) (*Count
 	return &country, nil
 }
 
-func (c CountryModel) GetCountriesByCodes(codes []string) (countries []*Country, retErr error) {
+func (c CountryModel) GetCountriesByCodes(codes []string, include IncludeSet) (countries []*Country, retErr error) {
 	if len(codes) == 0 {
 		return nil, ErrRecordNotFound
 	}
@@ -259,12 +259,15 @@ func (c CountryModel) GetCountriesByCodes(codes []string) (countries []*Country,
 	}()
 
 	countries = []*Country{}
+	countryByCode := make(map[string]*Country, len(codes))
 	for rows.Next() {
 		var country Country
 		if err := rows.Scan(&country.Code, &country.Name); err != nil {
 			return nil, err
 		}
-		countries = append(countries, &country)
+		countryPtr := &country
+		countries = append(countries, countryPtr)
+		countryByCode[country.Code] = countryPtr
 	}
 
 	if err = rows.Err(); err != nil {
@@ -274,5 +277,156 @@ func (c CountryModel) GetCountriesByCodes(codes []string) (countries []*Country,
 		return nil, ErrRecordNotFound
 	}
 
+	if include.Has("numbeo_indices") {
+		err = c.attachNumbeoIndicesByCodes(ctx, codes, countryByCode)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if include.Has("legatum_indices") {
+		err = c.attachLegatumIndicesByCodes(ctx, codes, countryByCode)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return countries, nil
+}
+
+func (c CountryModel) attachNumbeoIndicesByCodes(ctx context.Context, codes []string, countryByCode map[string]*Country) (retErr error) {
+	query := `
+		SELECT
+			nic.country_code,
+			row_to_json(n) AS numbeo_indices
+		FROM numbeo_index_by_country nic
+		CROSS JOIN LATERAL (
+			SELECT
+				nic.cost_of_living,
+				nic.rent,
+				nic.cost_of_living_plus_rent,
+				nic.groceries,
+				nic.restaurant_price,
+				nic.local_purchasing_power,
+				nic.quality_of_life,
+				nic.property_price_to_income_ratio,
+				nic.traffic_commute_time,
+				nic.climate,
+				nic.safety,
+				nic.health_care,
+				nic.pollution,
+				nic.avg_salary_usd,
+				to_char(nic.sys_updated_date, 'YYYY-MM-DD') AS last_update
+		) AS n
+		WHERE nic.country_code = ANY($1);`
+
+	rows, err := c.DB.QueryContext(ctx, query, pq.Array(codes))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
+
+	for rows.Next() {
+		var (
+			countryCode string
+			rawJSON     []byte
+		)
+
+		if err := rows.Scan(&countryCode, &rawJSON); err != nil {
+			return err
+		}
+		if len(rawJSON) == 0 || string(rawJSON) == "null" {
+			continue
+		}
+
+		var indices NumbeoCountryIndices
+		if err := json.Unmarshal(rawJSON, &indices); err != nil {
+			return err
+		}
+
+		country, ok := countryByCode[countryCode]
+		if !ok {
+			continue
+		}
+		country.NumbeoCountryIndices = &indices
+	}
+
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c CountryModel) attachLegatumIndicesByCodes(ctx context.Context, codes []string, countryByCode map[string]*Country) (retErr error) {
+	query := `
+		SELECT
+			li.country_code,
+			jsonb_object_agg(l.key, l.value) AS legatum_indices
+		FROM legatum_index li
+		CROSS JOIN LATERAL (
+			SELECT
+				CASE li.pillar_name
+					WHEN 'Safety and Security' THEN 'safety_and_security'
+					WHEN 'Personal Freedom' THEN 'personal_freedom'
+					WHEN 'Governance' THEN 'governance'
+					WHEN 'Social Capital' THEN 'social_capital'
+					WHEN 'Investment Environment' THEN 'investment_invironment'
+					WHEN 'Enterprise Conditions' THEN 'enterprise_conditions'
+					WHEN 'Infrastructure and Market Access' THEN 'infrastructure_and_market_access'
+					WHEN 'Economic Quality' THEN 'economic_quality'
+					WHEN 'Living Conditions' THEN 'living_conditions'
+					WHEN 'Health' THEN 'health'
+					WHEN 'Education' THEN 'education'
+					WHEN 'Natural Environment' THEN 'natural_environment'
+				END AS key,
+				to_jsonb(li) - 'country_code' - 'pillar_name' AS value
+		) AS l
+		WHERE li.country_code = ANY($1) AND l.key IS NOT NULL
+		GROUP BY li.country_code;`
+
+	rows, err := c.DB.QueryContext(ctx, query, pq.Array(codes))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
+
+	for rows.Next() {
+		var (
+			countryCode string
+			rawJSON     []byte
+		)
+
+		if err := rows.Scan(&countryCode, &rawJSON); err != nil {
+			return err
+		}
+		if len(rawJSON) == 0 || string(rawJSON) == "null" {
+			continue
+		}
+
+		var indices LegatumCountryIndices
+		if err := json.Unmarshal(rawJSON, &indices); err != nil {
+			return err
+		}
+
+		country, ok := countryByCode[countryCode]
+		if !ok {
+			continue
+		}
+		country.LegatumCountryIndices = &indices
+	}
+
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	return nil
 }
