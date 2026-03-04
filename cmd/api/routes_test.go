@@ -196,7 +196,7 @@ func TestCityID(t *testing.T) {
 				Name:        "Seattle",
 				StateCode:   ptrString("US-WA"),
 				CountryCode: "USA",
-				Country:     "United States of America",
+				CountryName: "United States of America",
 			},
 		},
 		{
@@ -208,7 +208,7 @@ func TestCityID(t *testing.T) {
 				Name:        "Tokyo",
 				StateCode:   nil,
 				CountryCode: "JPN",
-				Country:     "Japan",
+				CountryName: "Japan",
 			},
 		},
 		{

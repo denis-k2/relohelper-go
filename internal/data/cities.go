@@ -16,7 +16,7 @@ type City struct {
 	Name              string             `json:"city"`
 	StateCode         *string            `json:"state_code"`
 	CountryCode       string             `json:"country_code"`
-	Country           string             `json:"country,omitzero"`
+	CountryName       string             `json:"country,omitzero"`
 	NumbeoCost        *NumbeoCost        `json:"numbeo_cost,omitzero"`
 	NumbeoCityIndices *NumbeoCityIndices `json:"numbeo_indices,omitzero"`
 	AvgClimate        *AvgClimate        `json:"avg_climate,omitzero"`
@@ -124,7 +124,7 @@ func (c CityModel) ListCities(countryCode string, include IncludeSet) (cities []
 			&city.Name,
 			&city.StateCode,
 			&city.CountryCode,
-			&city.Country,
+			&city.CountryName,
 		); err != nil {
 			return nil, err
 		}
@@ -274,7 +274,7 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 		&city.Name,
 		&city.StateCode,
 		&city.CountryCode,
-		&city.Country,
+		&city.CountryName,
 		&costJSON,
 		&indicesJSON,
 		&climateJSON,
@@ -347,7 +347,7 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 			&city.Name,
 			&city.StateCode,
 			&city.CountryCode,
-			&city.Country,
+			&city.CountryName,
 		); err != nil {
 			return nil, err
 		}

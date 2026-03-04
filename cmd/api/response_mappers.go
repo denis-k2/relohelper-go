@@ -19,7 +19,7 @@ func newCityResponse(city *data.City, include data.IncludeSet) cityResponse {
 		City:        city.Name,
 		StateCode:   city.StateCode,
 		CountryCode: city.CountryCode,
-		Country:     city.Country,
+		Country:     city.CountryName,
 	}
 
 	if include.Has("numbeo_cost") {
