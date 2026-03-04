@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/denis-k2/relohelper-go/internal/data"
@@ -31,9 +32,9 @@ func (app *application) listCitiesHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if idsPresent {
-		if hasDetailedCityInclude(include) && len(ids) > 20 {
+		if hasDetailedCityInclude(include) && len(ids) > app.config.batch.maxDetailedIDs {
 			app.failedValidationResponse(w, r, map[string]string{
-				"ids": "ids cannot contain more than 20 unique values when detailed include blocks are requested",
+				"ids": fmt.Sprintf("ids cannot contain more than %d unique values when detailed include blocks are requested", app.config.batch.maxDetailedIDs),
 			})
 			return
 		}

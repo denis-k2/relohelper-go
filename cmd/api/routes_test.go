@@ -213,7 +213,7 @@ func TestCitiesBatchByIDsDetailedIncludeLimit(t *testing.T) {
 	var got gotResponse
 	unmarshalJSON(t, body, &got)
 	assert.DeepEqual(t, got.Error, map[string]any{
-		"ids": "ids cannot contain more than 20 unique values when detailed include blocks are requested",
+		"ids": fmt.Sprintf("ids cannot contain more than %d unique values when detailed include blocks are requested", testApp.config.batch.maxDetailedIDs),
 	})
 }
 
