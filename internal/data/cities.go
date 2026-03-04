@@ -12,17 +12,17 @@ import (
 )
 
 type City struct {
-	CityID        int64        `json:"city_id"`
-	City          string       `json:"city"`
-	StateCode     *string      `json:"state_code"`
-	CountryCode   string       `json:"country_code"`
-	Country       string       `json:"country,omitzero"`
-	NumbeoCost    *CostDetails `json:"numbeo_cost,omitzero"`
-	NumbeoIndices *Indices     `json:"numbeo_indices,omitzero"`
-	AvgClimate    *AvgClimate  `json:"avg_climate,omitzero"`
+	ID                int64              `json:"city_id"`
+	Name              string             `json:"city"`
+	StateCode         *string            `json:"state_code"`
+	CountryCode       string             `json:"country_code"`
+	Country           string             `json:"country,omitzero"`
+	NumbeoCost        *NumbeoCost        `json:"numbeo_cost,omitzero"`
+	NumbeoCityIndices *NumbeoCityIndices `json:"numbeo_indices,omitzero"`
+	AvgClimate        *AvgClimate        `json:"avg_climate,omitzero"`
 }
 
-type CostDetails struct {
+type NumbeoCost struct {
 	Currency   string  `json:"currency"`
 	LastUpdate string  `json:"last_update"`
 	Prices     []Price `json:"prices"`
@@ -36,7 +36,7 @@ type Price struct {
 	RangeUpper *float64 `json:"range_upper"`
 }
 
-type Indices struct {
+type NumbeoCityIndices struct {
 	CostOfLiving               *float64 `json:"cost_of_living"`
 	Rent                       *float64 `json:"rent"`
 	CostOfLivingPlusRent       *float64 `json:"cost_of_living_plus_rent"`
@@ -120,8 +120,8 @@ func (c CityModel) ListCities(countryCode string, include IncludeSet) (cities []
 	for rows.Next() {
 		var city City
 		if err := rows.Scan(
-			&city.CityID,
-			&city.City,
+			&city.ID,
+			&city.Name,
 			&city.StateCode,
 			&city.CountryCode,
 			&city.Country,
@@ -270,8 +270,8 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 		include.Has("numbeo_indices"),
 		include.Has("avg_climate"),
 	).Scan(
-		&city.CityID,
-		&city.City,
+		&city.ID,
+		&city.Name,
 		&city.StateCode,
 		&city.CountryCode,
 		&city.Country,
@@ -287,7 +287,7 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 	}
 
 	if len(costJSON) > 0 {
-		var details CostDetails
+		var details NumbeoCost
 		if err := json.Unmarshal(costJSON, &details); err != nil {
 			return nil, err
 		}
@@ -295,11 +295,11 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 	}
 
 	if len(indicesJSON) > 0 {
-		var details Indices
+		var details NumbeoCityIndices
 		if err := json.Unmarshal(indicesJSON, &details); err != nil {
 			return nil, err
 		}
-		city.NumbeoIndices = &details
+		city.NumbeoCityIndices = &details
 	}
 
 	if len(climateJSON) > 0 && string(climateJSON) != "null" {
@@ -343,8 +343,8 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 	for rows.Next() {
 		var city City
 		if err := rows.Scan(
-			&city.CityID,
-			&city.City,
+			&city.ID,
+			&city.Name,
 			&city.StateCode,
 			&city.CountryCode,
 			&city.Country,

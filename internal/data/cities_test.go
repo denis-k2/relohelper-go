@@ -19,7 +19,7 @@ func TestListCities(t *testing.T) {
 	}
 
 	assert.Equal(t, len(cities), 534)
-	assert.Equal(t, cities[0].CityID, int64(1))
+	assert.Equal(t, cities[0].ID, int64(1))
 	assert.Equal(t, cities[0].Country, "")
 }
 
@@ -45,10 +45,10 @@ func TestGetCity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.Equal(t, city.CityID, int64(273))
+	assert.Equal(t, city.ID, int64(273))
 	assert.Equal(t, city.Country, "Japan")
 	assert.Equal(t, city.NumbeoCost != nil, true)
-	assert.Equal(t, city.NumbeoIndices != nil, true)
+	assert.Equal(t, city.NumbeoCityIndices != nil, true)
 }
 
 func TestGetCitiesByIDs(t *testing.T) {
@@ -61,9 +61,9 @@ func TestGetCitiesByIDs(t *testing.T) {
 	}
 
 	assert.Equal(t, len(cities), 2)
-	assert.Equal(t, cities[0].CityID, int64(11))
+	assert.Equal(t, cities[0].ID, int64(11))
 	assert.Equal(t, cities[0].Country != "", true)
-	assert.Equal(t, cities[1].CityID, int64(94))
+	assert.Equal(t, cities[1].ID, int64(94))
 }
 
 func TestGetCityAvgClimateOrderedByMonth(t *testing.T) {

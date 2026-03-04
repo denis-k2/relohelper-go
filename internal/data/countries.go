@@ -11,13 +11,13 @@ import (
 )
 
 type Country struct {
-	Code           string                 `json:"country_code"`
-	Name           string                 `json:"country"`
-	NumbeoIndices  *NumbeoCountryIndicies `json:"numbeo_indices,omitempty"`
-	LegatumIndices *LegatumCountryIndices `json:"legatum_indices,omitempty"`
+	Code                  string                 `json:"country_code"`
+	Name                  string                 `json:"country"`
+	NumbeoCountryIndices  *NumbeoCountryIndices  `json:"numbeo_indices,omitempty"`
+	LegatumCountryIndices *LegatumCountryIndices `json:"legatum_indices,omitempty"`
 }
 
-type NumbeoCountryIndicies struct {
+type NumbeoCountryIndices struct {
 	CostOfLiving               *float64 `json:"cost_of_living"`
 	Rent                       *float64 `json:"rent"`
 	CostOfLivingPlusRent       *float64 `json:"cost_of_living_plus_rent"`
@@ -216,11 +216,11 @@ func (c CountryModel) GetCountry(countryCode string, include IncludeSet) (*Count
 	}
 
 	if len(numbeoJSON) > 0 {
-		var indices NumbeoCountryIndicies
+		var indices NumbeoCountryIndices
 		if err := json.Unmarshal(numbeoJSON, &indices); err != nil {
 			return nil, err
 		}
-		country.NumbeoIndices = &indices
+		country.NumbeoCountryIndices = &indices
 	}
 
 	if len(legatumJSON) > 0 && string(legatumJSON) != "null" {
@@ -228,7 +228,7 @@ func (c CountryModel) GetCountry(countryCode string, include IncludeSet) (*Count
 		if err := json.Unmarshal(legatumJSON, &indices); err != nil {
 			return nil, err
 		}
-		country.LegatumIndices = &indices
+		country.LegatumCountryIndices = &indices
 	}
 
 	return &country, nil
