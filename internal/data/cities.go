@@ -97,7 +97,7 @@ type CityModel struct {
 func (c CityModel) ListCities(countryCode string, include IncludeSet) (cities []*City, retErr error) {
 	query := `
 		SELECT c.city_id, c.city, c.state_code, c.country_code,
-		       CASE WHEN $2 THEN ctr.country ELSE '' END AS country
+		       ctr.country AS country
 		FROM city c
 		LEFT JOIN country ctr ON ctr.country_code = c.country_code
 		WHERE (LOWER(c.country_code) = LOWER($1) OR $1 = '')
@@ -106,7 +106,7 @@ func (c CityModel) ListCities(countryCode string, include IncludeSet) (cities []
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := c.DB.QueryContext(ctx, query, countryCode, include.Has("country"))
+	rows, err := c.DB.QueryContext(ctx, query, countryCode)
 	if err != nil {
 		return nil, err
 	}
@@ -152,9 +152,9 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 			c.city,
 			c.state_code,
 			c.country_code,
-			CASE WHEN $2 THEN ctr.country ELSE '' END AS country,
+			ctr.country AS country,
 			CASE
-				WHEN $3 THEN (
+				WHEN $2 THEN (
 					SELECT CASE
 						WHEN COUNT(*) = 0 THEN NULL
 						ELSE jsonb_build_object(
@@ -180,7 +180,7 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 				ELSE NULL
 			END AS numbeo_cost,
 			CASE
-				WHEN $4 THEN (
+				WHEN $3 THEN (
 					SELECT row_to_json(n)
 					FROM (
 						SELECT
@@ -204,7 +204,7 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 				ELSE NULL
 			END AS numbeo_indices,
 			CASE
-				WHEN $5 THEN (
+				WHEN $4 THEN (
 					WITH climate_rows AS (
 						SELECT *
 						FROM avg_climate ac
@@ -265,7 +265,6 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 		ctx,
 		query,
 		id,
-		include.Has("country"),
 		include.Has("numbeo_cost"),
 		include.Has("numbeo_indices"),
 		include.Has("avg_climate"),
@@ -320,7 +319,7 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 
 	query := `
 		SELECT c.city_id, c.city, c.state_code, c.country_code,
-		       CASE WHEN $2 THEN ctr.country ELSE '' END AS country
+		       ctr.country AS country
 		FROM city c
 		LEFT JOIN country ctr ON ctr.country_code = c.country_code
 		WHERE c.city_id = ANY($1)
@@ -329,7 +328,7 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	rows, err := c.DB.QueryContext(ctx, query, pq.Array(ids), include.Has("country"))
+	rows, err := c.DB.QueryContext(ctx, query, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
@@ -340,6 +339,7 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 	}()
 
 	cities = []*City{}
+	cityByID := make(map[int64]*City, len(ids))
 	for rows.Next() {
 		var city City
 		if err := rows.Scan(
@@ -351,7 +351,9 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 		); err != nil {
 			return nil, err
 		}
-		cities = append(cities, &city)
+		cityPtr := &city
+		cities = append(cities, cityPtr)
+		cityByID[city.ID] = cityPtr
 	}
 
 	if err = rows.Err(); err != nil {
@@ -361,7 +363,250 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 		return nil, ErrRecordNotFound
 	}
 
+	if include.Has("numbeo_cost") {
+		err = c.attachNumbeoCostByCityIDs(ctx, ids, cityByID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if include.Has("numbeo_indices") {
+		err = c.attachNumbeoCityIndicesByCityIDs(ctx, ids, cityByID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if include.Has("avg_climate") {
+		err = c.attachAvgClimateByCityIDs(ctx, ids, cityByID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return cities, nil
+}
+
+func (c CityModel) attachNumbeoCostByCityIDs(ctx context.Context, ids []int64, cityByID map[int64]*City) (retErr error) {
+	query := `
+		SELECT
+			ns.city_id,
+			jsonb_build_object(
+				'currency', MAX(ns.currency),
+				'last_update', to_char(MAX(ns.updated_date), 'YYYY-MM-DD'),
+				'prices', jsonb_agg(
+					jsonb_build_object(
+						'category', nc.category,
+						'param', np.param,
+						'cost', ns.cost,
+						'range_lower', lower(ns.range),
+						'range_upper', upper(ns.range)
+					)
+					ORDER BY nc.category, np.param
+				)
+			) AS numbeo_cost
+		FROM numbeo_stat ns
+		JOIN numbeo_param np ON np.param_id = ns.param_id
+		JOIN numbeo_category nc ON nc.category_id = np.category_id
+		WHERE ns.city_id = ANY($1)
+		GROUP BY ns.city_id;`
+
+	rows, err := c.DB.QueryContext(ctx, query, pq.Array(ids))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
+
+	for rows.Next() {
+		var (
+			cityID  int64
+			rawJSON []byte
+		)
+
+		if err := rows.Scan(&cityID, &rawJSON); err != nil {
+			return err
+		}
+		if len(rawJSON) == 0 || string(rawJSON) == "null" {
+			continue
+		}
+
+		var details NumbeoCost
+		if err := json.Unmarshal(rawJSON, &details); err != nil {
+			return err
+		}
+
+		city, ok := cityByID[cityID]
+		if !ok {
+			continue
+		}
+		city.NumbeoCost = &details
+	}
+
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c CityModel) attachNumbeoCityIndicesByCityIDs(ctx context.Context, ids []int64, cityByID map[int64]*City) (retErr error) {
+	query := `
+		SELECT
+			nic.city_id,
+			row_to_json(n) AS numbeo_indices
+		FROM numbeo_index_by_city nic
+		CROSS JOIN LATERAL (
+			SELECT
+				nic.cost_of_living,
+				nic.rent,
+				nic.cost_of_living_plus_rent,
+				nic.groceries,
+				nic.local_purchasing_power,
+				nic.quality_of_life,
+				nic.property_price_to_income_ratio,
+				nic.traffic_commute_time,
+				nic.climate,
+				nic.safety,
+				nic.health_care,
+				nic.pollution,
+				to_char(nic.sys_updated_date, 'YYYY-MM-DD') AS last_update
+		) AS n
+		WHERE nic.city_id = ANY($1);`
+
+	rows, err := c.DB.QueryContext(ctx, query, pq.Array(ids))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
+
+	for rows.Next() {
+		var (
+			cityID  int64
+			rawJSON []byte
+		)
+
+		if err := rows.Scan(&cityID, &rawJSON); err != nil {
+			return err
+		}
+		if len(rawJSON) == 0 || string(rawJSON) == "null" {
+			continue
+		}
+
+		var details NumbeoCityIndices
+		if err := json.Unmarshal(rawJSON, &details); err != nil {
+			return err
+		}
+
+		city, ok := cityByID[cityID]
+		if !ok {
+			continue
+		}
+		city.NumbeoCityIndices = &details
+	}
+
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c CityModel) attachAvgClimateByCityIDs(ctx context.Context, ids []int64, cityByID map[int64]*City) (retErr error) {
+	query := `
+		WITH climate_rows AS (
+			SELECT *
+			FROM avg_climate ac
+			WHERE ac.city_id = ANY($1)
+		),
+		climate_stats AS (
+			SELECT
+				city_id,
+				COUNT(*) AS row_count,
+				COUNT(DISTINCT month) AS unique_month_count,
+				MIN(month) AS min_month,
+				MAX(month) AS max_month
+			FROM climate_rows
+			GROUP BY city_id
+		),
+		climate_data AS (
+			SELECT
+				cr.city_id,
+				m.metric_key,
+				jsonb_agg(m.metric_value ORDER BY cr.month) AS month_values
+			FROM climate_rows cr
+			CROSS JOIN LATERAL jsonb_each(
+				to_jsonb(cr)
+					- 'city_id'
+					- 'month'
+					- 'sys_updated_date'
+					- 'sys_updeted_by'
+			) AS m(metric_key, metric_value)
+			GROUP BY cr.city_id, m.metric_key
+		)
+		SELECT
+			s.city_id,
+			CASE
+				WHEN s.row_count = 12
+					AND s.unique_month_count = 12
+					AND s.min_month = 1
+					AND s.max_month = 12
+				THEN (
+					SELECT jsonb_object_agg(cd.metric_key, cd.month_values)
+					FROM climate_data cd
+					WHERE cd.city_id = s.city_id
+				)
+				ELSE jsonb_build_object('__invalid_structure__', true)
+			END AS avg_climate
+		FROM climate_stats s;`
+
+	rows, err := c.DB.QueryContext(ctx, query, pq.Array(ids))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err := rows.Close(); err != nil && retErr == nil {
+			retErr = err
+		}
+	}()
+
+	for rows.Next() {
+		var (
+			cityID  int64
+			rawJSON []byte
+		)
+
+		if err := rows.Scan(&cityID, &rawJSON); err != nil {
+			return err
+		}
+		if len(rawJSON) == 0 || string(rawJSON) == "null" {
+			continue
+		}
+
+		avgClimate, err := decodeAvgClimateSeries(cityID, rawJSON)
+		if err != nil {
+			return err
+		}
+
+		city, ok := cityByID[cityID]
+		if !ok {
+			continue
+		}
+		city.AvgClimate = avgClimate
+	}
+
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func decodeAvgClimateSeries(cityID int64, rawJSON []byte) (*AvgClimate, error) {

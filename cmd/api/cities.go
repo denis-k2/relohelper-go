@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/denis-k2/relohelper-go/internal/data"
@@ -19,7 +20,7 @@ func (app *application) listCitiesHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	include, err := parseInclude(qs, newIncludeSet("country"))
+	include, err := parseInclude(qs, newIncludeSet("country", "numbeo_cost", "numbeo_indices", "avg_climate"))
 	if err != nil {
 		app.failedValidationResponse(w, r, map[string]string{"include": err.Error()})
 		return
@@ -31,6 +32,13 @@ func (app *application) listCitiesHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if idsPresent {
+		if hasDetailedCityInclude(include) && len(ids) > app.config.batch.maxDetailedIDs {
+			app.failedValidationResponse(w, r, map[string]string{
+				"ids": fmt.Sprintf("ids cannot contain more than %d unique values when detailed include blocks are requested", app.config.batch.maxDetailedIDs),
+			})
+			return
+		}
+
 		cities, err := app.models.Cities.GetCitiesByIDs(ids, include)
 		if err != nil {
 			switch {
@@ -42,10 +50,22 @@ func (app *application) listCitiesHandler(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		err = app.writeJSON(w, http.StatusOK, envelope{"cities": cities}, nil)
+		resp := make([]cityResponse, 0, len(cities))
+		for _, city := range cities {
+			resp = append(resp, newCityResponse(city, include))
+		}
+
+		err = app.writeJSON(w, http.StatusOK, envelope{"cities": resp}, nil)
 		if err != nil {
 			app.serverErrorResponse(w, r, err)
 		}
+		return
+	}
+
+	if hasDetailedCityInclude(include) {
+		app.failedValidationResponse(w, r, map[string]string{
+			"include": "detailed include blocks are supported only for batch ids requests",
+		})
 		return
 	}
 
@@ -74,6 +94,10 @@ func (app *application) listCitiesHandler(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		app.serverErrorResponse(w, r, err)
 	}
+}
+
+func hasDetailedCityInclude(include data.IncludeSet) bool {
+	return include.Has("numbeo_cost") || include.Has("numbeo_indices") || include.Has("avg_climate")
 }
 
 func (app *application) showCityHandler(w http.ResponseWriter, r *http.Request) {

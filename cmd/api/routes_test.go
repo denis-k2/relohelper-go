@@ -48,18 +48,21 @@ func TestCities(t *testing.T) {
 			Name:        "New York",
 			StateCode:   ptrString("US-NY"),
 			CountryCode: "USA",
+			CountryName: "United States of America",
 		},
 		{
 			ID:          94,
 			Name:        "Toronto",
 			StateCode:   nil,
 			CountryCode: "CAN",
+			CountryName: "Canada",
 		},
 		{
 			ID:          464,
 			Name:        "Moscow",
 			StateCode:   nil,
 			CountryCode: "RUS",
+			CountryName: "Russian Federation",
 		},
 	}
 	for _, city := range wantCities {
@@ -175,7 +178,43 @@ func TestCitiesBatchByIDs(t *testing.T) {
 	unmarshalJSON(t, body, &got)
 	assert.Equal(t, len(got.Cities), 2)
 	assert.Equal(t, got.Cities[0].ID, int64(11))
+	assert.Equal(t, got.Cities[0].CountryName, "United States of America")
 	assert.Equal(t, got.Cities[1].ID, int64(94))
+	assert.Equal(t, got.Cities[1].CountryName, "Canada")
+}
+
+// TestCitiesBatchByIDsWithInclude tests include behavior for "/cities?ids=...&include=...".
+func TestCitiesBatchByIDsWithInclude(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	statusCode, header, body := ts.get(t, "/cities?ids=329,11&include=avg_climate")
+	assert.Equal(t, statusCode, http.StatusOK)
+	assert.Equal(t, header.Get("content-type"), "application/json")
+	assert.Equal(t, jsonArrayObjectHasKeyByID(body, "cities", "city_id", int64(329), "avg_climate"), true)
+	assert.Equal(t, jsonArrayObjectIsNullByID(body, "cities", "city_id", int64(329), "avg_climate"), true)
+}
+
+// TestCitiesBatchByIDsDetailedIncludeLimit tests include batch limit for "/cities?ids=...&include=...".
+func TestCitiesBatchByIDsDetailedIncludeLimit(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	rawIDs := make([]string, 0, 21)
+	for i := 1; i <= 21; i++ {
+		rawIDs = append(rawIDs, fmt.Sprintf("%d", i))
+	}
+
+	urlPath := fmt.Sprintf("/cities?ids=%s&include=numbeo_indices", strings.Join(rawIDs, ","))
+	statusCode, header, body := ts.get(t, urlPath)
+	assert.Equal(t, statusCode, http.StatusUnprocessableEntity)
+	assert.Equal(t, header.Get("content-type"), "application/json")
+
+	var got gotResponse
+	unmarshalJSON(t, body, &got)
+	assert.DeepEqual(t, got.Error, map[string]any{
+		"ids": fmt.Sprintf("ids cannot contain more than %d unique values when detailed include blocks are requested", testApp.config.batch.maxDetailedIDs),
+	})
 }
 
 // TestCity tests the “/cities/:id” endpoint.
@@ -525,6 +564,77 @@ func jsonIsNull(body []byte, rootKey, key string) bool {
 	}
 
 	return string(v) == "null"
+}
+
+func jsonArrayObjectHasKeyByID(body []byte, rootKey, idKey string, id int64, key string) bool {
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return false
+	}
+
+	rootRaw, ok := payload[rootKey]
+	if !ok {
+		return false
+	}
+
+	var items []map[string]json.RawMessage
+	if err := json.Unmarshal(rootRaw, &items); err != nil {
+		return false
+	}
+
+	for _, item := range items {
+		idRaw, ok := item[idKey]
+		if !ok {
+			continue
+		}
+
+		var gotID int64
+		if err := json.Unmarshal(idRaw, &gotID); err != nil || gotID != id {
+			continue
+		}
+
+		_, exists := item[key]
+		return exists
+	}
+
+	return false
+}
+
+func jsonArrayObjectIsNullByID(body []byte, rootKey, idKey string, id int64, key string) bool {
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return false
+	}
+
+	rootRaw, ok := payload[rootKey]
+	if !ok {
+		return false
+	}
+
+	var items []map[string]json.RawMessage
+	if err := json.Unmarshal(rootRaw, &items); err != nil {
+		return false
+	}
+
+	for _, item := range items {
+		idRaw, ok := item[idKey]
+		if !ok {
+			continue
+		}
+
+		var gotID int64
+		if err := json.Unmarshal(idRaw, &gotID); err != nil || gotID != id {
+			continue
+		}
+
+		raw, exists := item[key]
+		if !exists {
+			return false
+		}
+		return string(raw) == "null"
+	}
+
+	return false
 }
 
 // TestCountries tests the “/countries" endpoint.

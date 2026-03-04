@@ -40,7 +40,8 @@ type config struct {
 		enabled bool
 	}
 	batch struct {
-		maxIDs int
+		maxIDs         int
+		maxDetailedIDs int
 	}
 	smtp struct {
 		host     string
@@ -117,6 +118,7 @@ func parseFlags() (config, error) {
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 20, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
 	flag.IntVar(&cfg.batch.maxIDs, "batch-max-ids", 100, "Maximum number of unique IDs in batch query parameters")
+	flag.IntVar(&cfg.batch.maxDetailedIDs, "batch-max-detailed-ids", 20, "Maximum number of unique city IDs in batch query when detailed include blocks are requested")
 
 	flag.StringVar(&cfg.smtp.host, "smtp-host", os.Getenv("RELOHELPER_SMTP_HOST"), "SMTP host")
 	flag.IntVar(&cfg.smtp.port, "smtp-port", 25, "SMTP port")
