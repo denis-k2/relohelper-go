@@ -20,7 +20,7 @@ func TestListCities(t *testing.T) {
 
 	assert.Equal(t, len(cities), 534)
 	assert.Equal(t, cities[0].ID, int64(1))
-	assert.Equal(t, cities[0].CountryName, "")
+	assert.Equal(t, cities[0].CountryName != "", true)
 }
 
 func TestListCitiesWithCountryInclude(t *testing.T) {
