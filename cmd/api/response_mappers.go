@@ -15,8 +15,8 @@ type cityResponse struct {
 
 func newCityResponse(city *data.City, include data.IncludeSet) cityResponse {
 	res := cityResponse{
-		CityID:      city.CityID,
-		City:        city.City,
+		CityID:      city.ID,
+		City:        city.Name,
 		StateCode:   city.StateCode,
 		CountryCode: city.CountryCode,
 		Country:     city.Country,
@@ -26,7 +26,7 @@ func newCityResponse(city *data.City, include data.IncludeSet) cityResponse {
 		res.NumbeoCost = city.NumbeoCost
 	}
 	if include.Has("numbeo_indices") {
-		res.NumbeoIndices = city.NumbeoIndices
+		res.NumbeoIndices = city.NumbeoCityIndices
 	}
 	if include.Has("avg_climate") {
 		res.AvgClimate = city.AvgClimate
@@ -49,10 +49,10 @@ func newCountryResponse(country *data.Country, include data.IncludeSet) countryR
 	}
 
 	if include.Has("numbeo_indices") {
-		res.NumbeoIndices = country.NumbeoIndices
+		res.NumbeoIndices = country.NumbeoCountryIndices
 	}
 	if include.Has("legatum_indices") {
-		res.LegatumIndices = country.LegatumIndices
+		res.LegatumIndices = country.LegatumCountryIndices
 	}
 
 	return res

@@ -178,7 +178,7 @@ type queryParamsCity struct {
 func cityFildsToBool(c data.City) queryParamsCity {
 	return queryParamsCity{
 		costEnabled:    c.NumbeoCost != nil,
-		indicesEnabled: c.NumbeoIndices != nil,
+		indicesEnabled: c.NumbeoCityIndices != nil,
 		climateEnabled: c.AvgClimate != nil,
 	}
 }
@@ -190,8 +190,8 @@ type queryParamsCountry struct {
 
 func countryFildsToBool(c data.Country) queryParamsCountry {
 	return queryParamsCountry{
-		numbeoIndicesEnabled:  c.NumbeoIndices != nil,
-		legatumIndicesEnabled: c.LegatumIndices != nil,
+		numbeoIndicesEnabled:  c.NumbeoCountryIndices != nil,
+		legatumIndicesEnabled: c.LegatumCountryIndices != nil,
 	}
 }
 

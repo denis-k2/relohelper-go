@@ -31,8 +31,8 @@ func TestGetCountry(t *testing.T) {
 	}
 
 	assert.Equal(t, country.Code, "USA")
-	assert.Equal(t, country.NumbeoIndices != nil, true)
-	assert.Equal(t, country.LegatumIndices != nil, true)
+	assert.Equal(t, country.NumbeoCountryIndices != nil, true)
+	assert.Equal(t, country.LegatumCountryIndices != nil, true)
 }
 
 func TestGetCountriesByCodes(t *testing.T) {

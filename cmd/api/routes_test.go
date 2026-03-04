@@ -42,26 +42,26 @@ func TestCities(t *testing.T) {
 
 	wantCities := []data.City{
 		{
-			CityID:      11,
-			City:        "New York",
+			ID:          11,
+			Name:        "New York",
 			StateCode:   ptrString("US-NY"),
 			CountryCode: "USA",
 		},
 		{
-			CityID:      94,
-			City:        "Toronto",
+			ID:          94,
+			Name:        "Toronto",
 			StateCode:   nil,
 			CountryCode: "CAN",
 		},
 		{
-			CityID:      464,
-			City:        "Moscow",
+			ID:          464,
+			Name:        "Moscow",
 			StateCode:   nil,
 			CountryCode: "RUS",
 		},
 	}
 	for _, city := range wantCities {
-		assert.DeepEqual(t, got.Cities[city.CityID-1], city)
+		assert.DeepEqual(t, got.Cities[city.ID-1], city)
 	}
 }
 
@@ -172,8 +172,8 @@ func TestCitiesBatchByIDs(t *testing.T) {
 	var got gotResponse
 	unmarshalJSON(t, body, &got)
 	assert.Equal(t, len(got.Cities), 2)
-	assert.Equal(t, got.Cities[0].CityID, int64(11))
-	assert.Equal(t, got.Cities[1].CityID, int64(94))
+	assert.Equal(t, got.Cities[0].ID, int64(11))
+	assert.Equal(t, got.Cities[1].ID, int64(94))
 }
 
 // TestCity tests the “/cities/:id” endpoint.
@@ -192,8 +192,8 @@ func TestCityID(t *testing.T) {
 			urlPath:    "/cities/15",
 			statusCode: http.StatusOK,
 			city: data.City{
-				CityID:      15,
-				City:        "Seattle",
+				ID:          15,
+				Name:        "Seattle",
 				StateCode:   ptrString("US-WA"),
 				CountryCode: "USA",
 				Country:     "United States of America",
@@ -204,8 +204,8 @@ func TestCityID(t *testing.T) {
 			urlPath:    "/cities/273?include=country",
 			statusCode: http.StatusOK,
 			city: data.City{
-				CityID:      273,
-				City:        "Tokyo",
+				ID:          273,
+				Name:        "Tokyo",
 				StateCode:   nil,
 				CountryCode: "JPN",
 				Country:     "Japan",
