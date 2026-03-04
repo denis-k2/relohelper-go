@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -296,16 +297,6 @@ func TestCityIDandQuery(t *testing.T) {
 			},
 		},
 		{
-			name:       "Enable both params with missing Avg Climate data",
-			urlPath:    "/cities/329?include=numbeo_cost,numbeo_indices,avg_climate",
-			statusCode: http.StatusOK,
-			queryParams: queryParamsCity{
-				costEnabled:    true,
-				indicesEnabled: true,
-				climateEnabled: false,
-			},
-		},
-		{
 			name:       "Include country only",
 			urlPath:    "/cities/321?include=country",
 			statusCode: http.StatusOK,
@@ -370,6 +361,93 @@ func TestCityIDandQuery(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCityIncludeFieldPresence tests include-driven field presence/omission for "/cities/:id".
+func TestCityIncludeFieldPresence(t *testing.T) {
+	ts := newTestServerWithMockUser(testApp.routes())
+	defer ts.Close()
+
+	t.Run("avg_climate requested and absent => explicit null", func(t *testing.T) {
+		statusCode, _, body := ts.sendRequest(t, "GET", "/cities/329?include=avg_climate,numbeo_indices", mocks.Headers, nil)
+		assert.Equal(t, statusCode, http.StatusOK)
+		assert.Equal(t, jsonHasKey(body, "city", "avg_climate"), true)
+		assert.Equal(t, jsonIsNull(body, "city", "avg_climate"), true)
+		assert.Equal(t, jsonHasKey(body, "city", "numbeo_indices"), true)
+		assert.Equal(t, jsonIsNull(body, "city", "numbeo_indices"), false)
+	})
+
+	t.Run("avg_climate not requested => field omitted", func(t *testing.T) {
+		statusCode, _, body := ts.sendRequest(t, "GET", "/cities/329", mocks.Headers, nil)
+		assert.Equal(t, statusCode, http.StatusOK)
+		assert.Equal(t, jsonHasKey(body, "city", "avg_climate"), false)
+	})
+}
+
+// TestCountryIncludeFieldPresence tests include-driven field presence/omission for "/countries/:alpha3".
+func TestCountryIncludeFieldPresence(t *testing.T) {
+	ts := newTestServerWithMockUser(testApp.routes())
+	defer ts.Close()
+
+	t.Run("numbeo_indices requested and absent => explicit null", func(t *testing.T) {
+		statusCode, _, body := ts.sendRequest(t, "GET", "/countries/afg?include=numbeo_indices,legatum_indices", mocks.Headers, nil)
+		assert.Equal(t, statusCode, http.StatusOK)
+		assert.Equal(t, jsonHasKey(body, "country", "numbeo_indices"), true)
+		assert.Equal(t, jsonIsNull(body, "country", "numbeo_indices"), true)
+		assert.Equal(t, jsonHasKey(body, "country", "legatum_indices"), true)
+		assert.Equal(t, jsonIsNull(body, "country", "legatum_indices"), false)
+	})
+
+	t.Run("include not requested => fields omitted", func(t *testing.T) {
+		statusCode, _, body := ts.sendRequest(t, "GET", "/countries/afg", mocks.Headers, nil)
+		assert.Equal(t, statusCode, http.StatusOK)
+		assert.Equal(t, jsonHasKey(body, "country", "numbeo_indices"), false)
+		assert.Equal(t, jsonHasKey(body, "country", "legatum_indices"), false)
+	})
+}
+
+func jsonHasKey(body []byte, rootKey, key string) bool {
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return false
+	}
+
+	rootRaw, ok := payload[rootKey]
+	if !ok {
+		return false
+	}
+
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(rootRaw, &root); err != nil {
+		return false
+	}
+
+	_, ok = root[key]
+	return ok
+}
+
+func jsonIsNull(body []byte, rootKey, key string) bool {
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(body, &payload); err != nil {
+		return false
+	}
+
+	rootRaw, ok := payload[rootKey]
+	if !ok {
+		return false
+	}
+
+	var root map[string]json.RawMessage
+	if err := json.Unmarshal(rootRaw, &root); err != nil {
+		return false
+	}
+
+	v, ok := root[key]
+	if !ok {
+		return false
+	}
+
+	return string(v) == "null"
 }
 
 // TestCountries tests the “/countries" endpoint.
