@@ -1,7 +1,9 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -368,6 +370,27 @@ func TestCityIncludeFieldPresence(t *testing.T) {
 	ts := newTestServerWithMockUser(testApp.routes())
 	defer ts.Close()
 
+	findCityIDWithoutData := func(t *testing.T, table string, idColumn string) (int64, bool) {
+		t.Helper()
+
+		query := fmt.Sprintf(`
+			SELECT c.city_id
+			FROM city c
+			LEFT JOIN %s x ON x.%s = c.city_id
+			WHERE x.%s IS NULL
+			LIMIT 1;`, table, idColumn, idColumn)
+
+		var cityID int64
+		if err := testDB.QueryRow(query).Scan(&cityID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return 0, false
+			}
+			t.Fatalf("failed to find city without data in %s: %v", table, err)
+		}
+
+		return cityID, true
+	}
+
 	t.Run("avg_climate requested and absent => explicit null", func(t *testing.T) {
 		statusCode, _, body := ts.sendRequest(t, "GET", "/cities/329?include=avg_climate,numbeo_indices", mocks.Headers, nil)
 		assert.Equal(t, statusCode, http.StatusOK)
@@ -382,12 +405,55 @@ func TestCityIncludeFieldPresence(t *testing.T) {
 		assert.Equal(t, statusCode, http.StatusOK)
 		assert.Equal(t, jsonHasKey(body, "city", "avg_climate"), false)
 	})
+
+	t.Run("numbeo_cost requested and absent => explicit null", func(t *testing.T) {
+		cityID, ok := findCityIDWithoutData(t, "numbeo_stat", "city_id")
+		if !ok {
+			t.Skip("no city without numbeo_stat in test dataset")
+		}
+		statusCode, _, body := ts.sendRequest(t, "GET", fmt.Sprintf("/cities/%d?include=numbeo_cost", cityID), mocks.Headers, nil)
+		assert.Equal(t, statusCode, http.StatusOK)
+		assert.Equal(t, jsonHasKey(body, "city", "numbeo_cost"), true)
+		assert.Equal(t, jsonIsNull(body, "city", "numbeo_cost"), true)
+	})
+
+	t.Run("numbeo_indices requested and absent => explicit null", func(t *testing.T) {
+		cityID, ok := findCityIDWithoutData(t, "numbeo_index_by_city", "city_id")
+		if !ok {
+			t.Skip("no city without numbeo_index_by_city in test dataset")
+		}
+		statusCode, _, body := ts.sendRequest(t, "GET", fmt.Sprintf("/cities/%d?include=numbeo_indices", cityID), mocks.Headers, nil)
+		assert.Equal(t, statusCode, http.StatusOK)
+		assert.Equal(t, jsonHasKey(body, "city", "numbeo_indices"), true)
+		assert.Equal(t, jsonIsNull(body, "city", "numbeo_indices"), true)
+	})
 }
 
 // TestCountryIncludeFieldPresence tests include-driven field presence/omission for "/countries/:alpha3".
 func TestCountryIncludeFieldPresence(t *testing.T) {
 	ts := newTestServerWithMockUser(testApp.routes())
 	defer ts.Close()
+
+	findCountryCodeWithoutData := func(t *testing.T, table string, codeColumn string) (string, bool) {
+		t.Helper()
+
+		query := fmt.Sprintf(`
+			SELECT ctr.country_code
+			FROM country ctr
+			LEFT JOIN %s x ON x.%s = ctr.country_code
+			WHERE x.%s IS NULL
+			LIMIT 1;`, table, codeColumn, codeColumn)
+
+		var countryCode string
+		if err := testDB.QueryRow(query).Scan(&countryCode); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return "", false
+			}
+			t.Fatalf("failed to find country without data in %s: %v", table, err)
+		}
+
+		return countryCode, true
+	}
 
 	t.Run("numbeo_indices requested and absent => explicit null", func(t *testing.T) {
 		statusCode, _, body := ts.sendRequest(t, "GET", "/countries/afg?include=numbeo_indices,legatum_indices", mocks.Headers, nil)
@@ -403,6 +469,17 @@ func TestCountryIncludeFieldPresence(t *testing.T) {
 		assert.Equal(t, statusCode, http.StatusOK)
 		assert.Equal(t, jsonHasKey(body, "country", "numbeo_indices"), false)
 		assert.Equal(t, jsonHasKey(body, "country", "legatum_indices"), false)
+	})
+
+	t.Run("legatum_indices requested and absent => explicit null", func(t *testing.T) {
+		countryCode, ok := findCountryCodeWithoutData(t, "legatum_index", "country_code")
+		if !ok {
+			t.Skip("no country without legatum_index in test dataset")
+		}
+		statusCode, _, body := ts.sendRequest(t, "GET", fmt.Sprintf("/countries/%s?include=legatum_indices", countryCode), mocks.Headers, nil)
+		assert.Equal(t, statusCode, http.StatusOK)
+		assert.Equal(t, jsonHasKey(body, "country", "legatum_indices"), true)
+		assert.Equal(t, jsonIsNull(body, "country", "legatum_indices"), true)
 	})
 }
 
