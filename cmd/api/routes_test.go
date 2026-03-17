@@ -40,25 +40,25 @@ func TestCities(t *testing.T) {
 
 	var got gotResponse
 	unmarshalJSON(t, body, &got)
-	assert.Equal(t, len(got.Cities), 534)
+	assert.Equal(t, len(got.Cities) > 0, true)
 
 	wantCities := []data.City{
 		{
-			ID:          11,
+			ID:          5128581,
 			Name:        "New York",
 			StateCode:   ptrString("US-NY"),
 			CountryCode: "USA",
 			CountryName: "United States of America",
 		},
 		{
-			ID:          94,
+			ID:          6167865,
 			Name:        "Toronto",
 			StateCode:   nil,
 			CountryCode: "CAN",
 			CountryName: "Canada",
 		},
 		{
-			ID:          464,
+			ID:          524901,
 			Name:        "Moscow",
 			StateCode:   nil,
 			CountryCode: "RUS",
@@ -66,8 +66,21 @@ func TestCities(t *testing.T) {
 		},
 	}
 	for _, city := range wantCities {
-		assert.DeepEqual(t, got.Cities[city.ID-1], city)
+		assert.DeepEqual(t, findCityByID(t, got.Cities, city.ID), city)
 	}
+}
+
+func findCityByID(t *testing.T, cities []data.City, id int64) data.City {
+	t.Helper()
+
+	for _, city := range cities {
+		if city.ID == id {
+			return city
+		}
+	}
+
+	t.Fatalf("city with id=%d not found in response", id)
+	return data.City{}
 }
 
 // TestCities tests the “/cities” endpoint with query parameter.
@@ -78,25 +91,21 @@ func TestCitiesByCountry(t *testing.T) {
 	tests := []struct {
 		name        string
 		countryCode string
-		citiesCount int
 		statusCode  int
 	}{
 		{
 			name:        "Valid uppercase code (USA)",
 			countryCode: "USA",
-			citiesCount: 58,
 			statusCode:  http.StatusOK,
 		},
 		{
 			name:        "Valid mixed case code (cAn)",
 			countryCode: "cAn",
-			citiesCount: 29,
 			statusCode:  http.StatusOK,
 		},
 		{
 			name:        "Valid lowercase code (rus)",
 			countryCode: "rus",
-			citiesCount: 8,
 			statusCode:  http.StatusOK,
 		},
 		{
@@ -136,7 +145,7 @@ func TestCitiesByCountry(t *testing.T) {
 		},
 		{
 			name:        "SQL injection attempt",
-			countryCode: url.QueryEscape("usa'; DROP TABLE city;"),
+			countryCode: url.QueryEscape("usa'; DROP TABLE cities;"),
 			statusCode:  http.StatusUnprocessableEntity,
 		},
 	}
@@ -150,9 +159,22 @@ func TestCitiesByCountry(t *testing.T) {
 			var got gotResponse
 			unmarshalJSON(t, body, &got)
 			assert.Equal(t, header.Get("content-type"), "application/json")
-			assert.Equal(t, len(got.Cities), tt.citiesCount)
 
 			switch tt.statusCode {
+			case http.StatusOK:
+				var expectedCount int
+				err := testDB.QueryRow(`
+					SELECT COUNT(*)
+					FROM cities
+					WHERE LOWER(country_code) = LOWER($1);`, tt.countryCode).Scan(&expectedCount)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				assert.Equal(t, len(got.Cities), expectedCount)
+				for _, city := range got.Cities {
+					assert.Equal(t, strings.EqualFold(city.CountryCode, tt.countryCode), true)
+				}
 			case http.StatusUnprocessableEntity:
 				wantError := map[string]any{
 					"country_code": "must be exactly three English letters",
@@ -170,16 +192,16 @@ func TestCitiesBatchByIDs(t *testing.T) {
 	ts := newTestServer(testApp.routes())
 	defer ts.Close()
 
-	statusCode, header, body := ts.get(t, "/cities?ids=11,94,11")
+	statusCode, header, body := ts.get(t, "/cities?ids=5128581,6167865,5128581")
 	assert.Equal(t, statusCode, http.StatusOK)
 	assert.Equal(t, header.Get("content-type"), "application/json")
 
 	var got gotResponse
 	unmarshalJSON(t, body, &got)
 	assert.Equal(t, len(got.Cities), 2)
-	assert.Equal(t, got.Cities[0].ID, int64(11))
+	assert.Equal(t, got.Cities[0].ID, int64(5128581))
 	assert.Equal(t, got.Cities[0].CountryName, "United States of America")
-	assert.Equal(t, got.Cities[1].ID, int64(94))
+	assert.Equal(t, got.Cities[1].ID, int64(6167865))
 	assert.Equal(t, got.Cities[1].CountryName, "Canada")
 }
 
@@ -188,11 +210,11 @@ func TestCitiesBatchByIDsWithInclude(t *testing.T) {
 	ts := newTestServer(testApp.routes())
 	defer ts.Close()
 
-	statusCode, header, body := ts.get(t, "/cities?ids=329,11&include=avg_climate")
+	statusCode, header, body := ts.get(t, "/cities?ids=3069011,5128581&include=avg_climate")
 	assert.Equal(t, statusCode, http.StatusOK)
 	assert.Equal(t, header.Get("content-type"), "application/json")
-	assert.Equal(t, jsonArrayObjectHasKeyByID(body, "cities", "city_id", int64(329), "avg_climate"), true)
-	assert.Equal(t, jsonArrayObjectIsNullByID(body, "cities", "city_id", int64(329), "avg_climate"), true)
+	assert.Equal(t, jsonArrayObjectHasKeyByID(body, "cities", "geoname_id", int64(3069011), "avg_climate"), true)
+	assert.Equal(t, jsonArrayObjectIsNullByID(body, "cities", "geoname_id", int64(3069011), "avg_climate"), true)
 }
 
 // TestCitiesBatchByIDsDetailedIncludeLimit tests include batch limit for "/cities?ids=...&include=...".
@@ -230,10 +252,10 @@ func TestCityID(t *testing.T) {
 	}{
 		{
 			name:       "Valid ID (No query params)",
-			urlPath:    "/cities/15",
+			urlPath:    "/cities/5809844",
 			statusCode: http.StatusOK,
 			city: data.City{
-				ID:          15,
+				ID:          5809844,
 				Name:        "Seattle",
 				StateCode:   ptrString("US-WA"),
 				CountryCode: "USA",
@@ -242,10 +264,10 @@ func TestCityID(t *testing.T) {
 		},
 		{
 			name:       "Valid ID with include query",
-			urlPath:    "/cities/273?include=country",
+			urlPath:    "/cities/1850147?include=country",
 			statusCode: http.StatusOK,
 			city: data.City{
-				ID:          273,
+				ID:          1850147,
 				Name:        "Tokyo",
 				StateCode:   nil,
 				CountryCode: "JPN",
@@ -309,7 +331,7 @@ func TestCityIDandQuery(t *testing.T) {
 	}{
 		{
 			name:       "One param enabled",
-			urlPath:    "/cities/12?include=numbeo_cost",
+			urlPath:    "/cities/5378538?include=numbeo_cost",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCity{
 				costEnabled:    true,
@@ -319,7 +341,7 @@ func TestCityIDandQuery(t *testing.T) {
 		},
 		{
 			name:       "Two params enabled",
-			urlPath:    "/cities/123?include=numbeo_cost,numbeo_indices",
+			urlPath:    "/cities/2562305?include=numbeo_cost,numbeo_indices",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCity{
 				costEnabled:    true,
@@ -329,7 +351,7 @@ func TestCityIDandQuery(t *testing.T) {
 		},
 		{
 			name:       "All params enabled",
-			urlPath:    "/cities/456?include=numbeo_cost,numbeo_indices,avg_climate",
+			urlPath:    "/cities/2542997?include=numbeo_cost,numbeo_indices,avg_climate",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCity{
 				costEnabled:    true,
@@ -339,7 +361,7 @@ func TestCityIDandQuery(t *testing.T) {
 		},
 		{
 			name:       "Include country only",
-			urlPath:    "/cities/321?include=country",
+			urlPath:    "/cities/3871336?include=country",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCity{
 				costEnabled:    false,
@@ -349,12 +371,12 @@ func TestCityIDandQuery(t *testing.T) {
 		},
 		{
 			name:       "Unknown params (mixed cases)",
-			urlPath:    "/cities/123?NUMBEO_COST=1&Numbeo_Indices=true&InvalidParam=TRUE",
+			urlPath:    "/cities/2562305?NUMBEO_COST=1&Numbeo_Indices=true&InvalidParam=TRUE",
 			statusCode: http.StatusUnprocessableEntity,
 		},
 		{
 			name:       "Duplicate includes",
-			urlPath:    "/cities/234?include=numbeo_cost,numbeo_cost,avg_climate",
+			urlPath:    "/cities/1850147?include=numbeo_cost,numbeo_cost,avg_climate",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCity{
 				costEnabled:    true,
@@ -364,12 +386,12 @@ func TestCityIDandQuery(t *testing.T) {
 		},
 		{
 			name:       "Unprocessable include value (123)",
-			urlPath:    "/cities/100?include=123",
+			urlPath:    "/cities/1850147?include=123",
 			statusCode: http.StatusUnprocessableEntity,
 		},
 		{
 			name:       "Unprocessable include value (abc)",
-			urlPath:    "/cities/100?include=abc",
+			urlPath:    "/cities/1850147?include=abc",
 			statusCode: http.StatusUnprocessableEntity,
 		},
 	}
@@ -409,29 +431,29 @@ func TestCityIncludeFieldPresence(t *testing.T) {
 	ts := newTestServerWithMockUser(testApp.routes())
 	defer ts.Close()
 
-	findCityIDWithoutData := func(t *testing.T, table string, idColumn string) (int64, bool) {
+	findGeonameIDWithoutData := func(t *testing.T, table string, idColumn string) (int64, bool) {
 		t.Helper()
 
 		query := fmt.Sprintf(`
-			SELECT c.city_id
-			FROM city c
-			LEFT JOIN %s x ON x.%s = c.city_id
+			SELECT c.geoname_id
+			FROM cities c
+			LEFT JOIN %s x ON x.%s = c.geoname_id
 			WHERE x.%s IS NULL
 			LIMIT 1;`, table, idColumn, idColumn)
 
-		var cityID int64
-		if err := testDB.QueryRow(query).Scan(&cityID); err != nil {
+		var geonameID int64
+		if err := testDB.QueryRow(query).Scan(&geonameID); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return 0, false
 			}
 			t.Fatalf("failed to find city without data in %s: %v", table, err)
 		}
 
-		return cityID, true
+		return geonameID, true
 	}
 
 	t.Run("avg_climate requested and absent => explicit null", func(t *testing.T) {
-		statusCode, _, body := ts.sendRequest(t, "GET", "/cities/329?include=avg_climate,numbeo_indices", mocks.Headers, nil)
+		statusCode, _, body := ts.sendRequest(t, "GET", "/cities/3069011?include=avg_climate,numbeo_indices", mocks.Headers, nil)
 		assert.Equal(t, statusCode, http.StatusOK)
 		assert.Equal(t, jsonHasKey(body, "city", "avg_climate"), true)
 		assert.Equal(t, jsonIsNull(body, "city", "avg_climate"), true)
@@ -440,28 +462,28 @@ func TestCityIncludeFieldPresence(t *testing.T) {
 	})
 
 	t.Run("avg_climate not requested => field omitted", func(t *testing.T) {
-		statusCode, _, body := ts.sendRequest(t, "GET", "/cities/329", mocks.Headers, nil)
+		statusCode, _, body := ts.sendRequest(t, "GET", "/cities/3069011", mocks.Headers, nil)
 		assert.Equal(t, statusCode, http.StatusOK)
 		assert.Equal(t, jsonHasKey(body, "city", "avg_climate"), false)
 	})
 
 	t.Run("numbeo_cost requested and absent => explicit null", func(t *testing.T) {
-		cityID, ok := findCityIDWithoutData(t, "numbeo_stat", "city_id")
+		geonameID, ok := findGeonameIDWithoutData(t, "numbeo_city_costs", "geoname_id")
 		if !ok {
-			t.Skip("no city without numbeo_stat in test dataset")
+			t.Skip("no city without numbeo_city_costs in test dataset")
 		}
-		statusCode, _, body := ts.sendRequest(t, "GET", fmt.Sprintf("/cities/%d?include=numbeo_cost", cityID), mocks.Headers, nil)
+		statusCode, _, body := ts.sendRequest(t, "GET", fmt.Sprintf("/cities/%d?include=numbeo_cost", geonameID), mocks.Headers, nil)
 		assert.Equal(t, statusCode, http.StatusOK)
 		assert.Equal(t, jsonHasKey(body, "city", "numbeo_cost"), true)
 		assert.Equal(t, jsonIsNull(body, "city", "numbeo_cost"), true)
 	})
 
 	t.Run("numbeo_indices requested and absent => explicit null", func(t *testing.T) {
-		cityID, ok := findCityIDWithoutData(t, "numbeo_index_by_city", "city_id")
+		geonameID, ok := findGeonameIDWithoutData(t, "numbeo_city_indices", "geoname_id")
 		if !ok {
-			t.Skip("no city without numbeo_index_by_city in test dataset")
+			t.Skip("no city without numbeo_city_indices in test dataset")
 		}
-		statusCode, _, body := ts.sendRequest(t, "GET", fmt.Sprintf("/cities/%d?include=numbeo_indices", cityID), mocks.Headers, nil)
+		statusCode, _, body := ts.sendRequest(t, "GET", fmt.Sprintf("/cities/%d?include=numbeo_indices", geonameID), mocks.Headers, nil)
 		assert.Equal(t, statusCode, http.StatusOK)
 		assert.Equal(t, jsonHasKey(body, "city", "numbeo_indices"), true)
 		assert.Equal(t, jsonIsNull(body, "city", "numbeo_indices"), true)
@@ -478,7 +500,7 @@ func TestCountryIncludeFieldPresence(t *testing.T) {
 
 		query := fmt.Sprintf(`
 			SELECT ctr.country_code
-			FROM country ctr
+			FROM countries ctr
 			LEFT JOIN %s x ON x.%s = ctr.country_code
 			WHERE x.%s IS NULL
 			LIMIT 1;`, table, codeColumn, codeColumn)
@@ -494,8 +516,34 @@ func TestCountryIncludeFieldPresence(t *testing.T) {
 		return countryCode, true
 	}
 
+	findCountryCodeWithoutNumbeoWithLegatum := func(t *testing.T) (string, bool) {
+		t.Helper()
+
+		query := `
+			SELECT ctr.country_code
+			FROM countries ctr
+			LEFT JOIN numbeo_country_indices ni ON ni.country_code = ctr.country_code
+			JOIN legatum_country_indices li ON li.country_code = ctr.country_code
+			WHERE ni.country_code IS NULL
+			LIMIT 1;`
+
+		var countryCode string
+		if err := testDB.QueryRow(query).Scan(&countryCode); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return "", false
+			}
+			t.Fatalf("failed to find country without numbeo and with legatum: %v", err)
+		}
+
+		return countryCode, true
+	}
+
 	t.Run("numbeo_indices requested and absent => explicit null", func(t *testing.T) {
-		statusCode, _, body := ts.sendRequest(t, "GET", "/countries/afg?include=numbeo_indices,legatum_indices", mocks.Headers, nil)
+		countryCode, ok := findCountryCodeWithoutNumbeoWithLegatum(t)
+		if !ok {
+			t.Skip("no country without numbeo and with legatum in test dataset")
+		}
+		statusCode, _, body := ts.sendRequest(t, "GET", fmt.Sprintf("/countries/%s?include=numbeo_indices,legatum_indices", countryCode), mocks.Headers, nil)
 		assert.Equal(t, statusCode, http.StatusOK)
 		assert.Equal(t, jsonHasKey(body, "country", "numbeo_indices"), true)
 		assert.Equal(t, jsonIsNull(body, "country", "numbeo_indices"), true)
@@ -504,16 +552,16 @@ func TestCountryIncludeFieldPresence(t *testing.T) {
 	})
 
 	t.Run("include not requested => fields omitted", func(t *testing.T) {
-		statusCode, _, body := ts.sendRequest(t, "GET", "/countries/afg", mocks.Headers, nil)
+		statusCode, _, body := ts.sendRequest(t, "GET", "/countries/usa", mocks.Headers, nil)
 		assert.Equal(t, statusCode, http.StatusOK)
 		assert.Equal(t, jsonHasKey(body, "country", "numbeo_indices"), false)
 		assert.Equal(t, jsonHasKey(body, "country", "legatum_indices"), false)
 	})
 
 	t.Run("legatum_indices requested and absent => explicit null", func(t *testing.T) {
-		countryCode, ok := findCountryCodeWithoutData(t, "legatum_index", "country_code")
+		countryCode, ok := findCountryCodeWithoutData(t, "legatum_country_indices", "country_code")
 		if !ok {
-			t.Skip("no country without legatum_index in test dataset")
+			t.Skip("no country without legatum_country_indices in test dataset")
 		}
 		statusCode, _, body := ts.sendRequest(t, "GET", fmt.Sprintf("/countries/%s?include=legatum_indices", countryCode), mocks.Headers, nil)
 		assert.Equal(t, statusCode, http.StatusOK)
@@ -849,7 +897,7 @@ func TestCountry(t *testing.T) {
 		},
 		{
 			name:       "SQL injection attempt",
-			urlPath:    "/countries/" + url.QueryEscape("usa'; DROP TABLE country;"),
+			urlPath:    "/countries/" + url.QueryEscape("usa'; DROP TABLE countries;"),
 			statusCode: http.StatusUnprocessableEntity,
 		},
 	}
@@ -881,6 +929,28 @@ func TestCountry(t *testing.T) {
 func TestCountryandQuery(t *testing.T) {
 	ts := newTestServerWithMockUser(testApp.routes())
 	defer ts.Close()
+
+	findCountryCodeWithoutNumbeoWithLegatum := func(t *testing.T) (string, bool) {
+		t.Helper()
+
+		query := `
+			SELECT ctr.country_code
+			FROM countries ctr
+			LEFT JOIN numbeo_country_indices ni ON ni.country_code = ctr.country_code
+			JOIN legatum_country_indices li ON li.country_code = ctr.country_code
+			WHERE ni.country_code IS NULL
+			LIMIT 1;`
+
+		var countryCode string
+		if err := testDB.QueryRow(query).Scan(&countryCode); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return "", false
+			}
+			t.Fatalf("failed to find country without numbeo and with legatum: %v", err)
+		}
+
+		return countryCode, true
+	}
 
 	tests := []struct {
 		name        string
@@ -917,7 +987,6 @@ func TestCountryandQuery(t *testing.T) {
 		},
 		{
 			name:       "Enable both params with missing Numbeo data",
-			urlPath:    "/countries/afg?include=numbeo_indices,legatum_indices",
 			statusCode: http.StatusOK,
 			queryParams: queryParamsCountry{
 				numbeoIndicesEnabled:  false,
@@ -970,7 +1039,16 @@ func TestCountryandQuery(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			statusCode, header, body := ts.sendRequest(t, "GET", tt.urlPath, mocks.Headers, nil)
+			urlPath := tt.urlPath
+			if tt.name == "Enable both params with missing Numbeo data" {
+				countryCode, ok := findCountryCodeWithoutNumbeoWithLegatum(t)
+				if !ok {
+					t.Skip("no country without numbeo and with legatum in test dataset")
+				}
+				urlPath = fmt.Sprintf("/countries/%s?include=numbeo_indices,legatum_indices", strings.ToLower(countryCode))
+			}
+
+			statusCode, header, body := ts.sendRequest(t, "GET", urlPath, mocks.Headers, nil)
 			assert.Equal(t, statusCode, tt.statusCode)
 			assert.Equal(t, header.Get("content-type"), "application/json")
 
@@ -1012,7 +1090,7 @@ func TestUnknownQueryParams(t *testing.T) {
 	}{
 		{name: "healthcheck", method: http.MethodGet, urlPath: "/healthcheck?foo=bar", headers: nil, statusCode: http.StatusUnprocessableEntity},
 		{name: "cities list", method: http.MethodGet, urlPath: "/cities?foo=bar", headers: nil, statusCode: http.StatusUnprocessableEntity},
-		{name: "cities detail", method: http.MethodGet, urlPath: "/cities/15?foo=bar", headers: mocks.Headers, statusCode: http.StatusUnprocessableEntity},
+		{name: "cities detail", method: http.MethodGet, urlPath: "/cities/5809844?foo=bar", headers: mocks.Headers, statusCode: http.StatusUnprocessableEntity},
 		{name: "countries list", method: http.MethodGet, urlPath: "/countries?foo=bar", headers: nil, statusCode: http.StatusUnprocessableEntity},
 		{name: "countries detail", method: http.MethodGet, urlPath: "/countries/AUS?foo=bar", headers: mocks.Headers, statusCode: http.StatusUnprocessableEntity},
 		{name: "register user", method: http.MethodPost, urlPath: "/users?foo=bar", headers: nil, statusCode: http.StatusUnprocessableEntity},
@@ -1405,26 +1483,26 @@ func TestAuthorizationUser(t *testing.T) {
 		{
 			name:       "Valid authentication header",
 			header:     http.Header{"Authorization": []string{"Bearer " + authToken}},
-			urlPath:    "/cities/123",
+			urlPath:    "/cities/2562305",
 			statusCode: http.StatusOK,
 		},
 		{
 			name:         "Authentication with invalid token",
 			header:       http.Header{"Authorization": []string{"Bearer " + "XXXXXXXXXXXXXXX"}},
-			urlPath:      "/cities/123",
+			urlPath:      "/cities/2562305",
 			statusCode:   http.StatusUnauthorized,
 			errorMessage: "invalid or missing authentication token",
 		},
 		{
 			name:         "Malformed authorization header",
 			header:       http.Header{"Authorization": []string{"INVALID"}},
-			urlPath:      "/cities/123",
+			urlPath:      "/cities/2562305",
 			statusCode:   http.StatusUnauthorized,
 			errorMessage: "invalid or missing authentication token",
 		},
 		{
 			name:         "Missing required authorization header",
-			urlPath:      "/cities/123",
+			urlPath:      "/cities/2562305",
 			statusCode:   http.StatusUnauthorized,
 			errorMessage: "you must be authenticated to access this resource",
 		},

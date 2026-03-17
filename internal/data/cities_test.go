@@ -18,9 +18,13 @@ func TestListCities(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.Equal(t, len(cities), 534)
-	assert.Equal(t, cities[0].ID, int64(1))
+	assert.Equal(t, len(cities), 527)
+	assert.Equal(t, len(cities) > 0, true)
+	assert.Equal(t, cities[0].ID > 0, true)
+	assert.Equal(t, cities[0].Name != "", true)
+	assert.Equal(t, cities[0].CountryCode != "", true)
 	assert.Equal(t, cities[0].CountryName != "", true)
+
 }
 
 func TestListCitiesWithCountryInclude(t *testing.T) {
@@ -40,12 +44,12 @@ func TestGetCity(t *testing.T) {
 	db := newTestDB(t)
 	models := NewModels(db)
 
-	city, err := models.Cities.GetCity(273, NewIncludeSet("country", "numbeo_cost", "numbeo_indices", "avg_climate"))
+	city, err := models.Cities.GetCity(1850147, NewIncludeSet("country", "numbeo_cost", "numbeo_indices", "avg_climate"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	assert.Equal(t, city.ID, int64(273))
+	assert.Equal(t, city.ID, int64(1850147))
 	assert.Equal(t, city.CountryName, "Japan")
 	assert.Equal(t, city.NumbeoCost != nil, true)
 	assert.Equal(t, city.NumbeoCityIndices != nil, true)
@@ -55,35 +59,35 @@ func TestGetCitiesByIDs(t *testing.T) {
 	db := newTestDB(t)
 	models := NewModels(db)
 
-	cities, err := models.Cities.GetCitiesByIDs([]int64{11, 94, 11}, NewIncludeSet("country"))
+	cities, err := models.Cities.GetCitiesByIDs([]int64{5128581, 6167865, 5128581}, NewIncludeSet("country"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	assert.Equal(t, len(cities), 2)
-	assert.Equal(t, cities[0].ID, int64(11))
+	assert.Equal(t, cities[0].ID, int64(5128581))
 	assert.Equal(t, cities[0].CountryName != "", true)
-	assert.Equal(t, cities[1].ID, int64(94))
+	assert.Equal(t, cities[1].ID, int64(6167865))
 }
 
 func TestGetCityAvgClimateOrderedByMonth(t *testing.T) {
 	db := newTestDB(t)
 	models := NewModels(db)
 
-	var cityID int64
+	var geonameID int64
 	err := db.QueryRow(`
-		SELECT city_id
+		SELECT geoname_id
 		FROM avg_climate
-		GROUP BY city_id
+		GROUP BY geoname_id
 		HAVING COUNT(*) = 12
 		LIMIT 1;
-	`).Scan(&cityID)
+	`).Scan(&geonameID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("testing city_id=%d", cityID)
+	t.Logf("testing geonameid=%d", geonameID)
 
-	city, err := models.Cities.GetCity(cityID, NewIncludeSet("avg_climate"))
+	city, err := models.Cities.GetCity(geonameID, NewIncludeSet("avg_climate"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,8 +99,8 @@ func TestGetCityAvgClimateOrderedByMonth(t *testing.T) {
 	rows, err := db.Query(`
 		SELECT month, high_temp
 		FROM avg_climate
-		WHERE city_id = $1
-		ORDER BY month;`, cityID)
+		WHERE geoname_id = $1
+		ORDER BY month;`, geonameID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +130,7 @@ func TestGetCityAvgClimateOrderedByMonth(t *testing.T) {
 	assert.Equal(t, len(city.AvgClimate.HighTemp), 12)
 	for i := range expected {
 		if !equalFloatPtrs(expected[i], city.AvgClimate.HighTemp[i]) {
-			t.Fatalf("city_id=%d high_temp[%d] mismatch: got=%v want=%v", cityID, i, city.AvgClimate.HighTemp[i], expected[i])
+			t.Fatalf("geonameid=%d high_temp[%d] mismatch: got=%v want=%v", geonameID, i, city.AvgClimate.HighTemp[i], expected[i])
 		}
 	}
 }
@@ -135,20 +139,20 @@ func TestGetCityAvgClimateSeaTempAllNull(t *testing.T) {
 	db := newTestDB(t)
 	models := NewModels(db)
 
-	var cityID int64
+	var geonameID int64
 	err := db.QueryRow(`
-		SELECT city_id
+		SELECT geoname_id
 		FROM avg_climate
-		GROUP BY city_id
+		GROUP BY geoname_id
 		HAVING COUNT(*) = 12 AND COUNT(sea_temp) = 0
 		LIMIT 1;
-	`).Scan(&cityID)
+	`).Scan(&geonameID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("testing city_id=%d", cityID)
+	t.Logf("testing geonameid=%d", geonameID)
 
-	city, err := models.Cities.GetCity(cityID, NewIncludeSet("avg_climate"))
+	city, err := models.Cities.GetCity(geonameID, NewIncludeSet("avg_climate"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +163,7 @@ func TestGetCityAvgClimateSeaTempAllNull(t *testing.T) {
 	assert.Equal(t, len(city.AvgClimate.SeaTemp), 12)
 	for i, value := range city.AvgClimate.SeaTemp {
 		if value != nil {
-			t.Fatalf("city_id=%d expected sea_temp[%d] to be nil, got %v", cityID, i, *value)
+			t.Fatalf("geonameid=%d expected sea_temp[%d] to be nil, got %v", geonameID, i, *value)
 		}
 	}
 }

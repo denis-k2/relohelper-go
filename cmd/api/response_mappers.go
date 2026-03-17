@@ -3,7 +3,7 @@ package main
 import "github.com/denis-k2/relohelper-go/internal/data"
 
 type cityResponse struct {
-	CityID        int64   `json:"city_id"`
+	CityID        int64   `json:"geoname_id"`
 	City          string  `json:"city"`
 	StateCode     *string `json:"state_code"`
 	CountryCode   string  `json:"country_code"`
