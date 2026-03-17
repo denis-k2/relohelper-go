@@ -42,31 +42,10 @@ func TestCities(t *testing.T) {
 	unmarshalJSON(t, body, &got)
 	assert.Equal(t, len(got.Cities) > 0, true)
 
-	wantCities := []data.City{
-		{
-			ID:          5128581,
-			Name:        "New York",
-			StateCode:   ptrString("US-NY"),
-			CountryCode: "USA",
-			CountryName: "United States of America",
-		},
-		{
-			ID:          6167865,
-			Name:        "Toronto",
-			StateCode:   nil,
-			CountryCode: "CAN",
-			CountryName: "Canada",
-		},
-		{
-			ID:          524901,
-			Name:        "Moscow",
-			StateCode:   nil,
-			CountryCode: "RUS",
-			CountryName: "Russian Federation",
-		},
-	}
-	for _, city := range wantCities {
-		assert.DeepEqual(t, findCityByID(t, got.Cities, city.ID), city)
+	for _, geonameID := range []int64{5128581, 6167865, 524901} {
+		gotCity := findCityByID(t, got.Cities, geonameID)
+		wantCity := fetchExpectedCity(t, geonameID)
+		assert.DeepEqual(t, gotCity, wantCity)
 	}
 }
 
@@ -74,13 +53,63 @@ func findCityByID(t *testing.T, cities []data.City, id int64) data.City {
 	t.Helper()
 
 	for _, city := range cities {
-		if city.ID == id {
+		if city.GeonameID == id {
 			return city
 		}
 	}
 
 	t.Fatalf("city with id=%d not found in response", id)
 	return data.City{}
+}
+
+func fetchExpectedCity(t *testing.T, geonameID int64) data.City {
+	t.Helper()
+
+	var city data.City
+	err := testDB.QueryRow(`
+		SELECT c.geoname_id, c.city, c.state_code, c.country_code, ctr.country,
+		       c.population, c.latitude, c.longitude, c.timezone,
+		       to_char(c.updated_date, 'YYYY-MM-DD') AS last_update
+		FROM cities c
+		LEFT JOIN countries ctr ON ctr.country_code = c.country_code
+		WHERE c.geoname_id = $1;`, geonameID).Scan(
+		&city.GeonameID,
+		&city.Name,
+		&city.StateCode,
+		&city.CountryCode,
+		&city.CountryName,
+		&city.Population,
+		&city.Latitude,
+		&city.Longitude,
+		&city.Timezone,
+		&city.LastUpdate,
+	)
+	if err != nil {
+		t.Fatalf("failed to fetch expected city %d: %v", geonameID, err)
+	}
+
+	return city
+}
+
+func fetchExpectedCountry(t *testing.T, code string) data.Country {
+	t.Helper()
+
+	var country data.Country
+	err := testDB.QueryRow(`
+		SELECT country_code, country, population, area, last_update::text
+		FROM countries
+		WHERE country_code = UPPER($1);`, code).Scan(
+		&country.Code,
+		&country.Name,
+		&country.Population,
+		&country.Area,
+		&country.LastUpdate,
+	)
+	if err != nil {
+		t.Fatalf("failed to fetch expected country %s: %v", code, err)
+	}
+
+	return country
 }
 
 // TestCities tests the “/cities” endpoint with query parameter.
@@ -199,9 +228,9 @@ func TestCitiesBatchByIDs(t *testing.T) {
 	var got gotResponse
 	unmarshalJSON(t, body, &got)
 	assert.Equal(t, len(got.Cities), 2)
-	assert.Equal(t, got.Cities[0].ID, int64(5128581))
+	assert.Equal(t, got.Cities[0].GeonameID, int64(5128581))
 	assert.Equal(t, got.Cities[0].CountryName, "United States of America")
-	assert.Equal(t, got.Cities[1].ID, int64(6167865))
+	assert.Equal(t, got.Cities[1].GeonameID, int64(6167865))
 	assert.Equal(t, got.Cities[1].CountryName, "Canada")
 }
 
@@ -248,31 +277,19 @@ func TestCityID(t *testing.T) {
 		name       string
 		urlPath    string
 		statusCode int
-		city       data.City
+		id         int64
 	}{
 		{
 			name:       "Valid ID (No query params)",
 			urlPath:    "/cities/5809844",
 			statusCode: http.StatusOK,
-			city: data.City{
-				ID:          5809844,
-				Name:        "Seattle",
-				StateCode:   ptrString("US-WA"),
-				CountryCode: "USA",
-				CountryName: "United States of America",
-			},
+			id:         5809844,
 		},
 		{
 			name:       "Valid ID with include query",
 			urlPath:    "/cities/1850147?include=country",
 			statusCode: http.StatusOK,
-			city: data.City{
-				ID:          1850147,
-				Name:        "Tokyo",
-				StateCode:   nil,
-				CountryCode: "JPN",
-				CountryName: "Japan",
-			},
+			id:         1850147,
 		},
 		{
 			name:       "Non-existent ID",
@@ -309,7 +326,9 @@ func TestCityID(t *testing.T) {
 
 			var got gotResponse
 			unmarshalJSON(t, body, &got)
-			assert.DeepEqual(t, got.City, tt.city)
+			if tt.statusCode == http.StatusOK {
+				assert.DeepEqual(t, got.City, fetchExpectedCity(t, tt.id))
+			}
 
 			if tt.statusCode == http.StatusNotFound {
 				assert.Equal(t, got.Error, "the requested resource could not be found")
@@ -732,38 +751,24 @@ func TestCountries(t *testing.T) {
 	unmarshalJSON(t, body, &got)
 	assert.Equal(t, len(got.Countries), 249)
 
-	tests := []struct {
-		index   int
-		country data.Country
-	}{
-		{
-			index: 14,
-			country: data.Country{
-				Code: "AUS",
-				Name: "Australia",
-			},
-		},
-		{
-			index: 111,
-			country: data.Country{
-				Code: "ITA",
-				Name: "Italy",
-			},
-		},
-		{
-			index: 218,
-			country: data.Country{
-				Code: "THA",
-				Name: "Thailand",
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("Check country code=%s", tt.country.Code), func(t *testing.T) {
-			assert.DeepEqual(t, got.Countries[tt.index], tt.country)
+	for _, code := range []string{"AUS", "ITA", "THA"} {
+		t.Run(fmt.Sprintf("Check country code=%s", code), func(t *testing.T) {
+			assert.DeepEqual(t, findCountryByCode(t, got.Countries, code), fetchExpectedCountry(t, code))
 		})
 	}
+}
+
+func findCountryByCode(t *testing.T, countries []data.Country, code string) data.Country {
+	t.Helper()
+
+	for _, country := range countries {
+		if country.Code == code {
+			return country
+		}
+	}
+
+	t.Fatalf("country with code=%s not found in response", code)
+	return data.Country{}
 }
 
 // TestCountriesBatchByCodes tests batch retrieval for "/countries?country_codes=...".
@@ -831,34 +836,25 @@ func TestCountry(t *testing.T) {
 		name       string
 		urlPath    string
 		statusCode int
-		country    data.Country
+		code       string
 	}{
 		{
 			name:       "Valid uppercase code (AUS)",
 			urlPath:    "/countries/AUS",
 			statusCode: http.StatusOK,
-			country: data.Country{
-				Code: "AUS",
-				Name: "Australia",
-			},
+			code:       "AUS",
 		},
 		{
 			name:       "Valid mixed case code (iTa)",
 			urlPath:    "/countries/iTa",
 			statusCode: http.StatusOK,
-			country: data.Country{
-				Code: "ITA",
-				Name: "Italy",
-			},
+			code:       "ITA",
 		},
 		{
 			name:       "Valid lowercase code (tha)",
 			urlPath:    "/countries/tha",
 			statusCode: http.StatusOK,
-			country: data.Country{
-				Code: "THA",
-				Name: "Thailand",
-			},
+			code:       "THA",
 		},
 		{
 			name:       "Nonexistent country code (XXX)",
@@ -910,7 +906,9 @@ func TestCountry(t *testing.T) {
 
 			var got gotResponse
 			unmarshalJSON(t, body, &got)
-			assert.DeepEqual(t, got.Country, tt.country)
+			if tt.statusCode == http.StatusOK {
+				assert.DeepEqual(t, got.Country, fetchExpectedCountry(t, tt.code))
+			}
 
 			switch tt.statusCode {
 			case http.StatusUnprocessableEntity:

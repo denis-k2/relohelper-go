@@ -12,11 +12,16 @@ import (
 )
 
 type City struct {
-	ID                int64              `json:"geoname_id"`
+	GeonameID         int64              `json:"geoname_id"`
 	Name              string             `json:"city"`
 	StateCode         *string            `json:"state_code"`
 	CountryCode       string             `json:"country_code"`
 	CountryName       string             `json:"country,omitzero"`
+	Population        *int64             `json:"population,omitzero"`
+	Latitude          float64            `json:"latitude"`
+	Longitude         float64            `json:"longitude"`
+	Timezone          string             `json:"timezone"`
+	LastUpdate        string             `json:"last_update"`
 	NumbeoCost        *NumbeoCost        `json:"numbeo_cost,omitzero"`
 	NumbeoCityIndices *NumbeoCityIndices `json:"numbeo_indices,omitzero"`
 	AvgClimate        *AvgClimate        `json:"avg_climate,omitzero"`
@@ -97,7 +102,8 @@ type CityModel struct {
 func (c CityModel) ListCities(countryCode string, include IncludeSet) (cities []*City, retErr error) {
 	query := `
 		SELECT c.geoname_id, c.city, c.state_code, c.country_code,
-		       ctr.country AS country
+		       ctr.country AS country, c.population, c.latitude, c.longitude, c.timezone,
+		       to_char(c.updated_date, 'YYYY-MM-DD') AS last_update
 		FROM cities c
 		LEFT JOIN countries ctr ON ctr.country_code = c.country_code
 		WHERE (LOWER(c.country_code) = LOWER($1) OR $1 = '')
@@ -120,11 +126,16 @@ func (c CityModel) ListCities(countryCode string, include IncludeSet) (cities []
 	for rows.Next() {
 		var city City
 		if err := rows.Scan(
-			&city.ID,
+			&city.GeonameID,
 			&city.Name,
 			&city.StateCode,
 			&city.CountryCode,
 			&city.CountryName,
+			&city.Population,
+			&city.Latitude,
+			&city.Longitude,
+			&city.Timezone,
+			&city.LastUpdate,
 		); err != nil {
 			return nil, err
 		}
@@ -153,13 +164,18 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 			c.state_code,
 			c.country_code,
 			ctr.country AS country,
+			c.population,
+			c.latitude,
+			c.longitude,
+			c.timezone,
+			to_char(c.updated_date, 'YYYY-MM-DD') AS last_update,
 			CASE
 				WHEN $2 THEN (
 					SELECT CASE
 						WHEN COUNT(*) = 0 THEN NULL
 						ELSE jsonb_build_object(
 							'currency', 'USD',
-							'last_update', to_char(MAX(ns.updated_date), 'YYYY-MM-DD'),
+							'last_update', MAX(ns.last_update)::text,
 							'prices', jsonb_agg(
 								jsonb_build_object(
 									'category', nc.category,
@@ -269,11 +285,16 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 		include.Has("numbeo_indices"),
 		include.Has("avg_climate"),
 	).Scan(
-		&city.ID,
+		&city.GeonameID,
 		&city.Name,
 		&city.StateCode,
 		&city.CountryCode,
 		&city.CountryName,
+		&city.Population,
+		&city.Latitude,
+		&city.Longitude,
+		&city.Timezone,
+		&city.LastUpdate,
 		&costJSON,
 		&indicesJSON,
 		&climateJSON,
@@ -319,7 +340,8 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 
 	query := `
 		SELECT c.geoname_id, c.city, c.state_code, c.country_code,
-		       ctr.country AS country
+		       ctr.country AS country, c.population, c.latitude, c.longitude, c.timezone,
+		       to_char(c.updated_date, 'YYYY-MM-DD') AS last_update
 		FROM cities c
 		LEFT JOIN countries ctr ON ctr.country_code = c.country_code
 		WHERE c.geoname_id = ANY($1)
@@ -343,17 +365,22 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 	for rows.Next() {
 		var city City
 		if err := rows.Scan(
-			&city.ID,
+			&city.GeonameID,
 			&city.Name,
 			&city.StateCode,
 			&city.CountryCode,
 			&city.CountryName,
+			&city.Population,
+			&city.Latitude,
+			&city.Longitude,
+			&city.Timezone,
+			&city.LastUpdate,
 		); err != nil {
 			return nil, err
 		}
 		cityPtr := &city
 		cities = append(cities, cityPtr)
-		cityByID[city.ID] = cityPtr
+		cityByID[city.GeonameID] = cityPtr
 	}
 
 	if err = rows.Err(); err != nil {
@@ -393,7 +420,7 @@ func (c CityModel) attachNumbeoCostByCityIDs(ctx context.Context, ids []int64, c
 			ns.geoname_id,
 			jsonb_build_object(
 				'currency', 'USD',
-				'last_update', to_char(MAX(ns.updated_date), 'YYYY-MM-DD'),
+				'last_update', MAX(ns.last_update)::text,
 				'prices', jsonb_agg(
 					jsonb_build_object(
 						'category', nc.category,

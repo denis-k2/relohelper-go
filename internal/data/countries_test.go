@@ -19,6 +19,7 @@ func TestListCountries(t *testing.T) {
 
 	assert.Equal(t, len(countries), 249)
 	assert.Equal(t, countries[0].Code != "", true)
+	assert.Equal(t, countries[0].LastUpdate != "", true)
 }
 
 func TestGetCountry(t *testing.T) {
@@ -31,6 +32,7 @@ func TestGetCountry(t *testing.T) {
 	}
 
 	assert.Equal(t, country.Code, "USA")
+	assert.Equal(t, country.LastUpdate != "", true)
 	assert.Equal(t, country.NumbeoCountryIndices != nil, true)
 	assert.Equal(t, country.LegatumCountryIndices != nil, true)
 }
@@ -46,5 +48,6 @@ func TestGetCountriesByCodes(t *testing.T) {
 
 	assert.Equal(t, len(countries), 2)
 	assert.Equal(t, countries[0].Code, "RUS")
+	assert.Equal(t, countries[0].LastUpdate != "", true)
 	assert.Equal(t, countries[1].Code, "USA")
 }
