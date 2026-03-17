@@ -175,7 +175,7 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 						WHEN COUNT(*) = 0 THEN NULL
 						ELSE jsonb_build_object(
 							'currency', 'USD',
-							'last_update', to_char(MAX(ns.updated_date), 'YYYY-MM-DD'),
+							'last_update', MAX(ns.last_update)::text,
 							'prices', jsonb_agg(
 								jsonb_build_object(
 									'category', nc.category,
@@ -420,7 +420,7 @@ func (c CityModel) attachNumbeoCostByCityIDs(ctx context.Context, ids []int64, c
 			ns.geoname_id,
 			jsonb_build_object(
 				'currency', 'USD',
-				'last_update', to_char(MAX(ns.updated_date), 'YYYY-MM-DD'),
+				'last_update', MAX(ns.last_update)::text,
 				'prices', jsonb_agg(
 					jsonb_build_object(
 						'category', nc.category,
