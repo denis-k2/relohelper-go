@@ -12,7 +12,7 @@ import (
 )
 
 type City struct {
-	ID                int64              `json:"city_id"`
+	ID                int64              `json:"geoname_id"`
 	Name              string             `json:"city"`
 	StateCode         *string            `json:"state_code"`
 	CountryCode       string             `json:"country_code"`
@@ -96,12 +96,12 @@ type CityModel struct {
 
 func (c CityModel) ListCities(countryCode string, include IncludeSet) (cities []*City, retErr error) {
 	query := `
-		SELECT c.city_id, c.city, c.state_code, c.country_code,
+		SELECT c.geoname_id, c.city, c.state_code, c.country_code,
 		       ctr.country AS country
-		FROM city c
-		LEFT JOIN country ctr ON ctr.country_code = c.country_code
+		FROM cities c
+		LEFT JOIN countries ctr ON ctr.country_code = c.country_code
 		WHERE (LOWER(c.country_code) = LOWER($1) OR $1 = '')
-		ORDER BY c.city_id;`
+		ORDER BY c.geoname_id;`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -148,7 +148,7 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 
 	query := `
 		SELECT
-			c.city_id,
+			c.geoname_id,
 			c.city,
 			c.state_code,
 			c.country_code,
@@ -158,7 +158,7 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 					SELECT CASE
 						WHEN COUNT(*) = 0 THEN NULL
 						ELSE jsonb_build_object(
-							'currency', MAX(ns.currency),
+							'currency', 'USD',
 							'last_update', to_char(MAX(ns.updated_date), 'YYYY-MM-DD'),
 							'prices', jsonb_agg(
 								jsonb_build_object(
@@ -172,10 +172,10 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 							)
 						)
 					END
-					FROM numbeo_stat ns
-					JOIN numbeo_param np ON np.param_id = ns.param_id
-					JOIN numbeo_category nc ON nc.category_id = np.category_id
-					WHERE ns.city_id = c.city_id
+					FROM numbeo_city_costs ns
+					JOIN numbeo_cost_params np ON np.param_id = ns.param_id
+					JOIN numbeo_cost_categories nc ON nc.category_id = np.category_id
+					WHERE ns.geoname_id = c.geoname_id
 				)
 				ELSE NULL
 			END AS numbeo_cost,
@@ -196,9 +196,9 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 							nic.safety,
 							nic.health_care,
 							nic.pollution,
-							to_char(nic.sys_updated_date, 'YYYY-MM-DD') AS last_update
-						FROM numbeo_index_by_city nic
-						WHERE nic.city_id = c.city_id
+							to_char(nic.updated_date, 'YYYY-MM-DD') AS last_update
+						FROM numbeo_city_indices nic
+						WHERE nic.geoname_id = c.geoname_id
 					) AS n
 				)
 				ELSE NULL
@@ -208,7 +208,7 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 					WITH climate_rows AS (
 						SELECT *
 						FROM avg_climate ac
-						WHERE ac.city_id = c.city_id
+						WHERE ac.geoname_id = c.geoname_id
 					),
 					climate_stats AS (
 						SELECT
@@ -225,10 +225,10 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 						FROM climate_rows cr
 						CROSS JOIN LATERAL jsonb_each(
 							to_jsonb(cr)
-								- 'city_id'
+								- 'geoname_id'
 								- 'month'
-								- 'sys_updated_date'
-								- 'sys_updeted_by'
+								- 'updated_date'
+								- 'updated_by'
 						) AS m(metric_key, metric_value)
 						GROUP BY m.metric_key
 					)
@@ -247,9 +247,9 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 				)
 				ELSE NULL
 			END AS avg_climate
-		FROM city c
-		LEFT JOIN country ctr ON ctr.country_code = c.country_code
-		WHERE c.city_id = $1;`
+		FROM cities c
+		LEFT JOIN countries ctr ON ctr.country_code = c.country_code
+		WHERE c.geoname_id = $1;`
 
 	var (
 		city        City
@@ -318,12 +318,12 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 	}
 
 	query := `
-		SELECT c.city_id, c.city, c.state_code, c.country_code,
+		SELECT c.geoname_id, c.city, c.state_code, c.country_code,
 		       ctr.country AS country
-		FROM city c
-		LEFT JOIN country ctr ON ctr.country_code = c.country_code
-		WHERE c.city_id = ANY($1)
-		ORDER BY c.city_id;`
+		FROM cities c
+		LEFT JOIN countries ctr ON ctr.country_code = c.country_code
+		WHERE c.geoname_id = ANY($1)
+		ORDER BY c.geoname_id;`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -390,9 +390,9 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 func (c CityModel) attachNumbeoCostByCityIDs(ctx context.Context, ids []int64, cityByID map[int64]*City) (retErr error) {
 	query := `
 		SELECT
-			ns.city_id,
+			ns.geoname_id,
 			jsonb_build_object(
-				'currency', MAX(ns.currency),
+				'currency', 'USD',
 				'last_update', to_char(MAX(ns.updated_date), 'YYYY-MM-DD'),
 				'prices', jsonb_agg(
 					jsonb_build_object(
@@ -405,11 +405,11 @@ func (c CityModel) attachNumbeoCostByCityIDs(ctx context.Context, ids []int64, c
 					ORDER BY nc.category, np.param
 				)
 			) AS numbeo_cost
-		FROM numbeo_stat ns
-		JOIN numbeo_param np ON np.param_id = ns.param_id
-		JOIN numbeo_category nc ON nc.category_id = np.category_id
-		WHERE ns.city_id = ANY($1)
-		GROUP BY ns.city_id;`
+		FROM numbeo_city_costs ns
+		JOIN numbeo_cost_params np ON np.param_id = ns.param_id
+		JOIN numbeo_cost_categories nc ON nc.category_id = np.category_id
+		WHERE ns.geoname_id = ANY($1)
+		GROUP BY ns.geoname_id;`
 
 	rows, err := c.DB.QueryContext(ctx, query, pq.Array(ids))
 	if err != nil {
@@ -456,9 +456,9 @@ func (c CityModel) attachNumbeoCostByCityIDs(ctx context.Context, ids []int64, c
 func (c CityModel) attachNumbeoCityIndicesByCityIDs(ctx context.Context, ids []int64, cityByID map[int64]*City) (retErr error) {
 	query := `
 		SELECT
-			nic.city_id,
+			nic.geoname_id,
 			row_to_json(n) AS numbeo_indices
-		FROM numbeo_index_by_city nic
+		FROM numbeo_city_indices nic
 		CROSS JOIN LATERAL (
 			SELECT
 				nic.cost_of_living,
@@ -473,9 +473,9 @@ func (c CityModel) attachNumbeoCityIndicesByCityIDs(ctx context.Context, ids []i
 				nic.safety,
 				nic.health_care,
 				nic.pollution,
-				to_char(nic.sys_updated_date, 'YYYY-MM-DD') AS last_update
+				to_char(nic.updated_date, 'YYYY-MM-DD') AS last_update
 		) AS n
-		WHERE nic.city_id = ANY($1);`
+		WHERE nic.geoname_id = ANY($1);`
 
 	rows, err := c.DB.QueryContext(ctx, query, pq.Array(ids))
 	if err != nil {
@@ -524,35 +524,35 @@ func (c CityModel) attachAvgClimateByCityIDs(ctx context.Context, ids []int64, c
 		WITH climate_rows AS (
 			SELECT *
 			FROM avg_climate ac
-			WHERE ac.city_id = ANY($1)
+			WHERE ac.geoname_id = ANY($1)
 		),
 		climate_stats AS (
 			SELECT
-				city_id,
+				geoname_id,
 				COUNT(*) AS row_count,
 				COUNT(DISTINCT month) AS unique_month_count,
 				MIN(month) AS min_month,
 				MAX(month) AS max_month
 			FROM climate_rows
-			GROUP BY city_id
+			GROUP BY geoname_id
 		),
 		climate_data AS (
 			SELECT
-				cr.city_id,
+				cr.geoname_id,
 				m.metric_key,
 				jsonb_agg(m.metric_value ORDER BY cr.month) AS month_values
 			FROM climate_rows cr
 			CROSS JOIN LATERAL jsonb_each(
 				to_jsonb(cr)
-					- 'city_id'
+					- 'geoname_id'
 					- 'month'
-					- 'sys_updated_date'
-					- 'sys_updeted_by'
+					- 'updated_date'
+					- 'updated_by'
 			) AS m(metric_key, metric_value)
-			GROUP BY cr.city_id, m.metric_key
+			GROUP BY cr.geoname_id, m.metric_key
 		)
 		SELECT
-			s.city_id,
+			s.geoname_id,
 			CASE
 				WHEN s.row_count = 12
 					AND s.unique_month_count = 12
@@ -561,7 +561,7 @@ func (c CityModel) attachAvgClimateByCityIDs(ctx context.Context, ids []int64, c
 				THEN (
 					SELECT jsonb_object_agg(cd.metric_key, cd.month_values)
 					FROM climate_data cd
-					WHERE cd.city_id = s.city_id
+					WHERE cd.geoname_id = s.geoname_id
 				)
 				ELSE jsonb_build_object('__invalid_structure__', true)
 			END AS avg_climate

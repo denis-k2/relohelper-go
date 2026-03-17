@@ -94,7 +94,7 @@ type CountryModel struct {
 func (c CountryModel) ListCountries() (countries []*Country, retErr error) {
 	query := `
 		SELECT country_code, country
-		FROM country
+		FROM countries
 		ORDER BY country_code;`
 
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -150,8 +150,8 @@ func (c CountryModel) GetCountry(countryCode string, include IncludeSet) (*Count
 							nic.health_care,
 							nic.pollution,
 							nic.avg_salary_usd,
-							to_char(nic.sys_updated_date, 'YYYY-MM-DD') AS last_update
-						FROM numbeo_index_by_country nic
+							to_char(nic.updated_date, 'YYYY-MM-DD') AS last_update
+						FROM numbeo_country_indices nic
 						WHERE nic.country_code = ctr.country_code
 					) AS n
 				)
@@ -177,14 +177,14 @@ func (c CountryModel) GetCountry(countryCode string, include IncludeSet) (*Count
 								WHEN 'Natural Environment' THEN 'natural_environment'
 							END AS key,
 							to_jsonb(li) - 'country_code' - 'pillar_name' AS value
-						FROM legatum_index li
+						FROM legatum_country_indices li
 						WHERE li.country_code = ctr.country_code
 					) AS l
 					WHERE l.key IS NOT NULL
 				)
 				ELSE NULL
 			END AS legatum_indices
-		FROM country ctr
+		FROM countries ctr
 		WHERE ctr.country_code = $1;`
 
 	var (
@@ -241,7 +241,7 @@ func (c CountryModel) GetCountriesByCodes(codes []string, include IncludeSet) (c
 
 	query := `
 		SELECT ctr.country_code, ctr.country
-		FROM country ctr
+		FROM countries ctr
 		WHERE ctr.country_code = ANY($1)
 		ORDER BY ctr.country_code;`
 
@@ -299,7 +299,7 @@ func (c CountryModel) attachNumbeoIndicesByCodes(ctx context.Context, codes []st
 		SELECT
 			nic.country_code,
 			row_to_json(n) AS numbeo_indices
-		FROM numbeo_index_by_country nic
+		FROM numbeo_country_indices nic
 		CROSS JOIN LATERAL (
 			SELECT
 				nic.cost_of_living,
@@ -316,7 +316,7 @@ func (c CountryModel) attachNumbeoIndicesByCodes(ctx context.Context, codes []st
 				nic.health_care,
 				nic.pollution,
 				nic.avg_salary_usd,
-				to_char(nic.sys_updated_date, 'YYYY-MM-DD') AS last_update
+				to_char(nic.updated_date, 'YYYY-MM-DD') AS last_update
 		) AS n
 		WHERE nic.country_code = ANY($1);`
 
@@ -367,7 +367,7 @@ func (c CountryModel) attachLegatumIndicesByCodes(ctx context.Context, codes []s
 		SELECT
 			li.country_code,
 			jsonb_object_agg(l.key, l.value) AS legatum_indices
-		FROM legatum_index li
+		FROM legatum_country_indices li
 		CROSS JOIN LATERAL (
 			SELECT
 				CASE li.pillar_name
