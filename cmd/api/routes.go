@@ -12,7 +12,9 @@ func (app *application) routes() http.Handler {
 	router.Use(app.recoverPanic)
 	router.Use(app.enableCORS)
 	router.Use(app.rateLimit)
-	router.Use(app.authenticate)
+	if app.config.auth.enabled {
+		router.Use(app.authenticate)
+	}
 
 	router.NotFound(app.notFoundResponse)
 	router.MethodNotAllowed(app.methodNotAllowedResponse)
@@ -20,9 +22,14 @@ func (app *application) routes() http.Handler {
 	router.Get("/healthcheck", app.healthcheckHandler)
 
 	router.Get("/cities", app.listCitiesHandler)
-	router.With(app.requireActivatedUser).Get("/cities/{id}", app.showCityHandler)
 	router.Get("/countries", app.listCountriesHandler)
-	router.With(app.requireActivatedUser).Get("/countries/{alpha3}", app.showCountryHandler)
+	if app.config.auth.enabled {
+		router.With(app.requireActivatedUser).Get("/cities/{id}", app.showCityHandler)
+		router.With(app.requireActivatedUser).Get("/countries/{alpha3}", app.showCountryHandler)
+	} else {
+		router.Get("/cities/{id}", app.showCityHandler)
+		router.Get("/countries/{alpha3}", app.showCountryHandler)
+	}
 
 	router.Post("/users", app.registerUserHandler)
 	router.Put("/users/activated", app.activateUserHandler)

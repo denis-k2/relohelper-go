@@ -39,6 +39,9 @@ type config struct {
 		burst   int
 		enabled bool
 	}
+	auth struct {
+		enabled bool
+	}
 	batch struct {
 		maxIDs         int
 		maxDetailedIDs int
@@ -117,6 +120,7 @@ func parseFlags() (config, error) {
 	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 10, "Rate limiter maximum requests per second")
 	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 20, "Rate limiter maximum burst")
 	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
+	flag.BoolVar(&cfg.auth.enabled, "auth-enabled", true, "Enable authentication and activated-user checks")
 	flag.IntVar(&cfg.batch.maxIDs, "batch-max-ids", 100, "Maximum number of unique IDs in batch query parameters")
 	flag.IntVar(&cfg.batch.maxDetailedIDs, "batch-max-detailed-ids", 20, "Maximum number of unique city IDs in batch query when detailed include blocks are requested")
 
