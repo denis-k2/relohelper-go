@@ -13,6 +13,9 @@ import (
 type Country struct {
 	Code                  string                 `json:"country_code"`
 	Name                  string                 `json:"country"`
+	Population            *int64                 `json:"population,omitzero"`
+	Area                  *int64                 `json:"area,omitzero"`
+	LastUpdate            string                 `json:"last_update"`
 	NumbeoCountryIndices  *NumbeoCountryIndices  `json:"numbeo_indices,omitempty"`
 	LegatumCountryIndices *LegatumCountryIndices `json:"legatum_indices,omitempty"`
 }
@@ -93,7 +96,7 @@ type CountryModel struct {
 
 func (c CountryModel) ListCountries() (countries []*Country, retErr error) {
 	query := `
-		SELECT country_code, country
+		SELECT country_code, country, population, area, last_update::text
 		FROM countries
 		ORDER BY country_code;`
 
@@ -113,7 +116,7 @@ func (c CountryModel) ListCountries() (countries []*Country, retErr error) {
 	countries = []*Country{}
 	for rows.Next() {
 		var country Country
-		if err := rows.Scan(&country.Code, &country.Name); err != nil {
+		if err := rows.Scan(&country.Code, &country.Name, &country.Population, &country.Area, &country.LastUpdate); err != nil {
 			return nil, err
 		}
 		countries = append(countries, &country)
@@ -131,6 +134,9 @@ func (c CountryModel) GetCountry(countryCode string, include IncludeSet) (*Count
 		SELECT
 			ctr.country_code,
 			ctr.country,
+			ctr.population,
+			ctr.area,
+			ctr.last_update::text AS last_update,
 			CASE
 				WHEN $2 THEN (
 					SELECT row_to_json(n)
@@ -205,6 +211,9 @@ func (c CountryModel) GetCountry(countryCode string, include IncludeSet) (*Count
 	).Scan(
 		&country.Code,
 		&country.Name,
+		&country.Population,
+		&country.Area,
+		&country.LastUpdate,
 		&numbeoJSON,
 		&legatumJSON,
 	)
@@ -240,7 +249,7 @@ func (c CountryModel) GetCountriesByCodes(codes []string, include IncludeSet) (c
 	}
 
 	query := `
-		SELECT ctr.country_code, ctr.country
+		SELECT ctr.country_code, ctr.country, ctr.population, ctr.area, ctr.last_update::text AS last_update
 		FROM countries ctr
 		WHERE ctr.country_code = ANY($1)
 		ORDER BY ctr.country_code;`
@@ -262,7 +271,7 @@ func (c CountryModel) GetCountriesByCodes(codes []string, include IncludeSet) (c
 	countryByCode := make(map[string]*Country, len(codes))
 	for rows.Next() {
 		var country Country
-		if err := rows.Scan(&country.Code, &country.Name); err != nil {
+		if err := rows.Scan(&country.Code, &country.Name, &country.Population, &country.Area, &country.LastUpdate); err != nil {
 			return nil, err
 		}
 		countryPtr := &country

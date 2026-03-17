@@ -17,6 +17,11 @@ type City struct {
 	StateCode         *string            `json:"state_code"`
 	CountryCode       string             `json:"country_code"`
 	CountryName       string             `json:"country,omitzero"`
+	Population        *int64             `json:"population,omitzero"`
+	Latitude          float64            `json:"latitude"`
+	Longitude         float64            `json:"longitude"`
+	Timezone          string             `json:"timezone"`
+	LastUpdate        string             `json:"last_update"`
 	NumbeoCost        *NumbeoCost        `json:"numbeo_cost,omitzero"`
 	NumbeoCityIndices *NumbeoCityIndices `json:"numbeo_indices,omitzero"`
 	AvgClimate        *AvgClimate        `json:"avg_climate,omitzero"`
@@ -97,7 +102,8 @@ type CityModel struct {
 func (c CityModel) ListCities(countryCode string, include IncludeSet) (cities []*City, retErr error) {
 	query := `
 		SELECT c.geoname_id, c.city, c.state_code, c.country_code,
-		       ctr.country AS country
+		       ctr.country AS country, c.population, c.latitude, c.longitude, c.timezone,
+		       to_char(c.updated_date, 'YYYY-MM-DD') AS last_update
 		FROM cities c
 		LEFT JOIN countries ctr ON ctr.country_code = c.country_code
 		WHERE (LOWER(c.country_code) = LOWER($1) OR $1 = '')
@@ -125,6 +131,11 @@ func (c CityModel) ListCities(countryCode string, include IncludeSet) (cities []
 			&city.StateCode,
 			&city.CountryCode,
 			&city.CountryName,
+			&city.Population,
+			&city.Latitude,
+			&city.Longitude,
+			&city.Timezone,
+			&city.LastUpdate,
 		); err != nil {
 			return nil, err
 		}
@@ -153,6 +164,11 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 			c.state_code,
 			c.country_code,
 			ctr.country AS country,
+			c.population,
+			c.latitude,
+			c.longitude,
+			c.timezone,
+			to_char(c.updated_date, 'YYYY-MM-DD') AS last_update,
 			CASE
 				WHEN $2 THEN (
 					SELECT CASE
@@ -274,6 +290,11 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 		&city.StateCode,
 		&city.CountryCode,
 		&city.CountryName,
+		&city.Population,
+		&city.Latitude,
+		&city.Longitude,
+		&city.Timezone,
+		&city.LastUpdate,
 		&costJSON,
 		&indicesJSON,
 		&climateJSON,
@@ -319,7 +340,8 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 
 	query := `
 		SELECT c.geoname_id, c.city, c.state_code, c.country_code,
-		       ctr.country AS country
+		       ctr.country AS country, c.population, c.latitude, c.longitude, c.timezone,
+		       to_char(c.updated_date, 'YYYY-MM-DD') AS last_update
 		FROM cities c
 		LEFT JOIN countries ctr ON ctr.country_code = c.country_code
 		WHERE c.geoname_id = ANY($1)
@@ -348,6 +370,11 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 			&city.StateCode,
 			&city.CountryCode,
 			&city.CountryName,
+			&city.Population,
+			&city.Latitude,
+			&city.Longitude,
+			&city.Timezone,
+			&city.LastUpdate,
 		); err != nil {
 			return nil, err
 		}

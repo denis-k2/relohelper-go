@@ -24,7 +24,10 @@ func TestListCities(t *testing.T) {
 	assert.Equal(t, cities[0].Name != "", true)
 	assert.Equal(t, cities[0].CountryCode != "", true)
 	assert.Equal(t, cities[0].CountryName != "", true)
-
+	assert.Equal(t, cities[0].Latitude != 0, true)
+	assert.Equal(t, cities[0].Longitude != 0, true)
+	assert.Equal(t, cities[0].Timezone != "", true)
+	assert.Equal(t, cities[0].LastUpdate != "", true)
 }
 
 func TestListCitiesWithCountryInclude(t *testing.T) {
@@ -51,6 +54,10 @@ func TestGetCity(t *testing.T) {
 
 	assert.Equal(t, city.ID, int64(1850147))
 	assert.Equal(t, city.CountryName, "Japan")
+	assert.Equal(t, city.Latitude != 0, true)
+	assert.Equal(t, city.Longitude != 0, true)
+	assert.Equal(t, city.Timezone != "", true)
+	assert.Equal(t, city.LastUpdate != "", true)
 	assert.Equal(t, city.NumbeoCost != nil, true)
 	assert.Equal(t, city.NumbeoCityIndices != nil, true)
 }
@@ -67,6 +74,7 @@ func TestGetCitiesByIDs(t *testing.T) {
 	assert.Equal(t, len(cities), 2)
 	assert.Equal(t, cities[0].ID, int64(5128581))
 	assert.Equal(t, cities[0].CountryName != "", true)
+	assert.Equal(t, cities[0].Timezone != "", true)
 	assert.Equal(t, cities[1].ID, int64(6167865))
 }
 
