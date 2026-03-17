@@ -12,7 +12,7 @@ import (
 )
 
 type City struct {
-	ID                int64              `json:"geoname_id"`
+	GeonameID         int64              `json:"geoname_id"`
 	Name              string             `json:"city"`
 	StateCode         *string            `json:"state_code"`
 	CountryCode       string             `json:"country_code"`
@@ -126,7 +126,7 @@ func (c CityModel) ListCities(countryCode string, include IncludeSet) (cities []
 	for rows.Next() {
 		var city City
 		if err := rows.Scan(
-			&city.ID,
+			&city.GeonameID,
 			&city.Name,
 			&city.StateCode,
 			&city.CountryCode,
@@ -285,7 +285,7 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 		include.Has("numbeo_indices"),
 		include.Has("avg_climate"),
 	).Scan(
-		&city.ID,
+		&city.GeonameID,
 		&city.Name,
 		&city.StateCode,
 		&city.CountryCode,
@@ -365,7 +365,7 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 	for rows.Next() {
 		var city City
 		if err := rows.Scan(
-			&city.ID,
+			&city.GeonameID,
 			&city.Name,
 			&city.StateCode,
 			&city.CountryCode,
@@ -380,7 +380,7 @@ func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) (cities []*Ci
 		}
 		cityPtr := &city
 		cities = append(cities, cityPtr)
-		cityByID[city.ID] = cityPtr
+		cityByID[city.GeonameID] = cityPtr
 	}
 
 	if err = rows.Err(); err != nil {

@@ -53,7 +53,7 @@ func findCityByID(t *testing.T, cities []data.City, id int64) data.City {
 	t.Helper()
 
 	for _, city := range cities {
-		if city.ID == id {
+		if city.GeonameID == id {
 			return city
 		}
 	}
@@ -73,7 +73,7 @@ func fetchExpectedCity(t *testing.T, geonameID int64) data.City {
 		FROM cities c
 		LEFT JOIN countries ctr ON ctr.country_code = c.country_code
 		WHERE c.geoname_id = $1;`, geonameID).Scan(
-		&city.ID,
+		&city.GeonameID,
 		&city.Name,
 		&city.StateCode,
 		&city.CountryCode,
@@ -228,9 +228,9 @@ func TestCitiesBatchByIDs(t *testing.T) {
 	var got gotResponse
 	unmarshalJSON(t, body, &got)
 	assert.Equal(t, len(got.Cities), 2)
-	assert.Equal(t, got.Cities[0].ID, int64(5128581))
+	assert.Equal(t, got.Cities[0].GeonameID, int64(5128581))
 	assert.Equal(t, got.Cities[0].CountryName, "United States of America")
-	assert.Equal(t, got.Cities[1].ID, int64(6167865))
+	assert.Equal(t, got.Cities[1].GeonameID, int64(6167865))
 	assert.Equal(t, got.Cities[1].CountryName, "Canada")
 }
 

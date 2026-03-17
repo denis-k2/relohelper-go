@@ -20,7 +20,7 @@ func TestListCities(t *testing.T) {
 
 	assert.Equal(t, len(cities), 527)
 	assert.Equal(t, len(cities) > 0, true)
-	assert.Equal(t, cities[0].ID > 0, true)
+	assert.Equal(t, cities[0].GeonameID > 0, true)
 	assert.Equal(t, cities[0].Name != "", true)
 	assert.Equal(t, cities[0].CountryCode != "", true)
 	assert.Equal(t, cities[0].CountryName != "", true)
@@ -52,7 +52,7 @@ func TestGetCity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.Equal(t, city.ID, int64(1850147))
+	assert.Equal(t, city.GeonameID, int64(1850147))
 	assert.Equal(t, city.CountryName, "Japan")
 	assert.Equal(t, city.Latitude != 0, true)
 	assert.Equal(t, city.Longitude != 0, true)
@@ -72,10 +72,10 @@ func TestGetCitiesByIDs(t *testing.T) {
 	}
 
 	assert.Equal(t, len(cities), 2)
-	assert.Equal(t, cities[0].ID, int64(5128581))
+	assert.Equal(t, cities[0].GeonameID, int64(5128581))
 	assert.Equal(t, cities[0].CountryName != "", true)
 	assert.Equal(t, cities[0].Timezone != "", true)
-	assert.Equal(t, cities[1].ID, int64(6167865))
+	assert.Equal(t, cities[1].GeonameID, int64(6167865))
 }
 
 func TestGetCityAvgClimateOrderedByMonth(t *testing.T) {

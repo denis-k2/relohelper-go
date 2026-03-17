@@ -20,7 +20,7 @@ type cityResponse struct {
 
 func newCityResponse(city *data.City, include data.IncludeSet) cityResponse {
 	res := cityResponse{
-		CityID:      city.ID,
+		CityID:      city.GeonameID,
 		City:        city.Name,
 		StateCode:   city.StateCode,
 		CountryCode: city.CountryCode,
