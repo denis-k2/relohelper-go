@@ -1,0 +1,430 @@
+openapi: 3.0.3
+info:
+  title: Relohelper API
+  version: 0.1.0
+  description: |
+    OpenAPI documentation for the current cities and countries REST API.
+servers:
+  - url: /
+tags:
+  - name: Cities
+  - name: Countries
+paths:
+  /cities:
+    get:
+      tags: [Cities]
+      summary: List cities or fetch a city batch by geoname ids
+      parameters:
+        - name: country_code
+          in: query
+          schema:
+            type: string
+          description: Case-insensitive country filter for list mode.
+        - name: ids
+          in: query
+          schema:
+            type: string
+          description: |
+            Comma-separated batch of positive geoname ids. When present, the endpoint works in batch mode.
+        - name: include
+          in: query
+          schema:
+            type: string
+          description: |
+            Comma-separated include values.
+            List mode supports only `country`.
+            Batch mode supports `country,numbeo_cost,numbeo_indices,avg_climate`.
+      responses:
+        "200":
+          description: City list or batch result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CitiesEnvelope"
+        "404":
+          description: No matching cities found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /cities/{id}:
+    get:
+      tags: [Cities]
+      summary: Get city detail
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+          description: Geoname identifier used by the route.
+        - name: include
+          in: query
+          schema:
+            type: string
+          description: Comma-separated include values (country,numbeo_cost,numbeo_indices,avg_climate).
+      responses:
+        "200":
+          description: City detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CityEnvelope"
+        "404":
+          description: City not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /countries:
+    get:
+      tags: [Countries]
+      summary: List countries or fetch a country batch by country codes
+      parameters:
+        - name: country_codes
+          in: query
+          schema:
+            type: string
+          description: |
+            Comma-separated batch of country codes. When present, the endpoint works in batch mode.
+        - name: include
+          in: query
+          schema:
+            type: string
+          description: |
+            Comma-separated include values for batch mode only: `numbeo_indices,legatum_indices`.
+      responses:
+        "200":
+          description: Country list or batch result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountriesEnvelope"
+        "404":
+          description: No matching countries found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+  /countries/{alpha3}:
+    get:
+      tags: [Countries]
+      summary: Get country detail
+      parameters:
+        - name: alpha3
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Alpha-3 country code used by the route.
+        - name: include
+          in: query
+          schema:
+            type: string
+          description: Comma-separated include values (numbeo_indices,legatum_indices).
+      responses:
+        "200":
+          description: Country detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CountryEnvelope"
+        "404":
+          description: Country not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+components:
+  schemas:
+    CitiesEnvelope:
+      type: object
+      required: [cities]
+      properties:
+        cities:
+          type: array
+          items:
+            $ref: "#/components/schemas/City"
+    CityEnvelope:
+      type: object
+      required: [city]
+      properties:
+        city:
+          $ref: "#/components/schemas/City"
+    CountriesEnvelope:
+      type: object
+      required: [countries]
+      properties:
+        countries:
+          type: array
+          items:
+            $ref: "#/components/schemas/Country"
+    CountryEnvelope:
+      type: object
+      required: [country]
+      properties:
+        country:
+          $ref: "#/components/schemas/Country"
+    ErrorEnvelope:
+      type: object
+      properties:
+        error:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: string
+    City:
+      type: object
+      required:
+        - geoname_id
+        - city
+        - country_code
+        - country
+        - latitude
+        - longitude
+        - timezone
+        - last_update
+      properties:
+        geoname_id:
+          type: integer
+          format: int64
+        city:
+          type: string
+        state_code:
+          type: string
+          nullable: true
+        country_code:
+          type: string
+        country:
+          type: string
+        population:
+          type: integer
+          format: int64
+          nullable: true
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+        timezone:
+          type: string
+        last_update:
+          type: string
+        numbeo_cost:
+          allOf:
+            - $ref: "#/components/schemas/NumbeoCost"
+          nullable: true
+        numbeo_indices:
+          allOf:
+            - $ref: "#/components/schemas/NumbeoCityIndices"
+          nullable: true
+        avg_climate:
+          allOf:
+            - $ref: "#/components/schemas/AvgClimate"
+          nullable: true
+    Country:
+      type: object
+      required:
+        - country_code
+        - country
+        - last_update
+      properties:
+        country_code:
+          type: string
+        country:
+          type: string
+        population:
+          type: integer
+          format: int64
+          nullable: true
+        area:
+          type: integer
+          format: int64
+          nullable: true
+        last_update:
+          type: string
+        numbeo_indices:
+          allOf:
+            - $ref: "#/components/schemas/NumbeoCountryIndices"
+          nullable: true
+        legatum_indices:
+          allOf:
+            - $ref: "#/components/schemas/LegatumCountryIndices"
+          nullable: true
+    NumbeoCost:
+      type: object
+      required: [currency, last_update, prices]
+      properties:
+        currency:
+          type: string
+        last_update:
+          type: string
+        prices:
+          type: array
+          items:
+            $ref: "#/components/schemas/Price"
+    Price:
+      type: object
+      required: [category, param]
+      properties:
+        category:
+          type: string
+        param:
+          type: string
+        cost:
+          type: number
+          format: double
+          nullable: true
+        range_lower:
+          type: number
+          format: double
+          nullable: true
+        range_upper:
+          type: number
+          format: double
+          nullable: true
+    NumbeoCityIndices:
+      type: object
+      properties:
+        cost_of_living: { type: number, format: double, nullable: true }
+        rent: { type: number, format: double, nullable: true }
+        cost_of_living_plus_rent:
+          { type: number, format: double, nullable: true }
+        groceries: { type: number, format: double, nullable: true }
+        local_purchasing_power: { type: number, format: double, nullable: true }
+        quality_of_life: { type: number, format: double, nullable: true }
+        property_price_to_income_ratio:
+          { type: number, format: double, nullable: true }
+        traffic_commute_time: { type: number, format: double, nullable: true }
+        climate: { type: number, format: double, nullable: true }
+        safety: { type: number, format: double, nullable: true }
+        health_care: { type: number, format: double, nullable: true }
+        pollution: { type: number, format: double, nullable: true }
+        last_update: { type: string }
+    NumbeoCountryIndices:
+      type: object
+      properties:
+        cost_of_living: { type: number, format: double, nullable: true }
+        rent: { type: number, format: double, nullable: true }
+        cost_of_living_plus_rent:
+          { type: number, format: double, nullable: true }
+        groceries: { type: number, format: double, nullable: true }
+        restaurant_price: { type: number, format: double, nullable: true }
+        local_purchasing_power: { type: number, format: double, nullable: true }
+        quality_of_life: { type: number, format: double, nullable: true }
+        property_price_to_income_ratio:
+          { type: number, format: double, nullable: true }
+        traffic_commute_time: { type: number, format: double, nullable: true }
+        climate: { type: number, format: double, nullable: true }
+        safety: { type: number, format: double, nullable: true }
+        health_care: { type: number, format: double, nullable: true }
+        pollution: { type: number, format: double, nullable: true }
+        avg_salary_usd: { type: number, format: double, nullable: true }
+        last_update: { type: string }
+    AvgClimate:
+      type: object
+      properties:
+        high_temp: { $ref: "#/components/schemas/MonthlySeries" }
+        low_temp: { $ref: "#/components/schemas/MonthlySeries" }
+        pressure: { $ref: "#/components/schemas/MonthlySeries" }
+        wind_speed: { $ref: "#/components/schemas/MonthlySeries" }
+        humidity: { $ref: "#/components/schemas/MonthlySeries" }
+        rainfall: { $ref: "#/components/schemas/MonthlySeries" }
+        rainfall_days: { $ref: "#/components/schemas/MonthlySeries" }
+        snowfall: { $ref: "#/components/schemas/MonthlySeries" }
+        snowfall_days: { $ref: "#/components/schemas/MonthlySeries" }
+        sea_temp: { $ref: "#/components/schemas/MonthlySeries" }
+        daylight: { $ref: "#/components/schemas/MonthlySeries" }
+        sunshine: { $ref: "#/components/schemas/MonthlySeries" }
+        sunshine_days: { $ref: "#/components/schemas/MonthlySeries" }
+        uv_index: { $ref: "#/components/schemas/MonthlySeries" }
+        cloud_cover: { $ref: "#/components/schemas/MonthlySeries" }
+        visibility: { $ref: "#/components/schemas/MonthlySeries" }
+    MonthlySeries:
+      type: array
+      minItems: 12
+      maxItems: 12
+      items:
+        type: number
+        format: double
+        nullable: true
+    LegatumCountryIndices:
+      type: object
+      properties:
+        safety_and_security: { $ref: "#/components/schemas/RankAndScore" }
+        personal_freedom: { $ref: "#/components/schemas/RankAndScore" }
+        governance: { $ref: "#/components/schemas/RankAndScore" }
+        social_capital: { $ref: "#/components/schemas/RankAndScore" }
+        investment_invironment: { $ref: "#/components/schemas/RankAndScore" }
+        enterprise_conditions: { $ref: "#/components/schemas/RankAndScore" }
+        infrastructure_and_market_access:
+          { $ref: "#/components/schemas/RankAndScore" }
+        economic_quality: { $ref: "#/components/schemas/RankAndScore" }
+        living_conditions: { $ref: "#/components/schemas/RankAndScore" }
+        health: { $ref: "#/components/schemas/RankAndScore" }
+        education: { $ref: "#/components/schemas/RankAndScore" }
+        natural_environment: { $ref: "#/components/schemas/RankAndScore" }
+    RankAndScore:
+      type: object
+      properties:
+        rank_2007: { type: integer }
+        rank_2008: { type: integer }
+        rank_2009: { type: integer }
+        rank_2010: { type: integer }
+        rank_2011: { type: integer }
+        rank_2012: { type: integer }
+        rank_2013: { type: integer }
+        rank_2014: { type: integer }
+        rank_2015: { type: integer }
+        rank_2016: { type: integer }
+        rank_2017: { type: integer }
+        rank_2018: { type: integer }
+        rank_2019: { type: integer }
+        rank_2020: { type: integer }
+        rank_2021: { type: integer }
+        rank_2022: { type: integer }
+        rank_2023: { type: integer }
+        score_2007: { type: number, format: double }
+        score_2008: { type: number, format: double }
+        score_2009: { type: number, format: double }
+        score_2010: { type: number, format: double }
+        score_2011: { type: number, format: double }
+        score_2012: { type: number, format: double }
+        score_2013: { type: number, format: double }
+        score_2014: { type: number, format: double }
+        score_2015: { type: number, format: double }
+        score_2016: { type: number, format: double }
+        score_2017: { type: number, format: double }
+        score_2018: { type: number, format: double }
+        score_2019: { type: number, format: double }
+        score_2020: { type: number, format: double }
+        score_2021: { type: number, format: double }
+        score_2022: { type: number, format: double }
+        score_2023: { type: number, format: double }
