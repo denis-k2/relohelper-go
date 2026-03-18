@@ -14,10 +14,10 @@ import (
 type City struct {
 	GeonameID         int64              `json:"geoname_id"`
 	Name              string             `json:"city"`
-	StateCode         *string            `json:"state_code"`
+	StateCode         *string            `json:"state_code,omitzero"`
 	CountryCode       string             `json:"country_code"`
-	CountryName       string             `json:"country,omitzero"`
-	Population        *int64             `json:"population,omitzero"`
+	CountryName       string             `json:"country"`
+	Population        *int64             `json:"population"`
 	Latitude          float64            `json:"latitude"`
 	Longitude         float64            `json:"longitude"`
 	Timezone          string             `json:"timezone"`
