@@ -31,16 +31,34 @@
           "color": {
             "mode": "thresholds"
           },
+          "mappings": [
+            {
+              "options": {
+                "0": {
+                  "index": 0,
+                  "text": "Down"
+                },
+                "1": {
+                  "index": 1,
+                  "text": "Up"
+                }
+              },
+              "type": "value"
+            }
+          ],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
+                "color": "red",
+                "value": 0
+              },
+              {
                 "color": "green",
-                "value": null
+                "value": 1
               }
             ]
-          },
-          "unit": "short"
+          }
         },
         "overrides": []
       },
@@ -53,8 +71,8 @@
       "id": 1,
       "options": {
         "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
+        "graphMode": "none",
+        "justifyMode": "center",
         "orientation": "auto",
         "reduceOptions": {
           "calcs": [
@@ -68,12 +86,11 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(increase(relohelper_http_requests_total[5m]))",
-          "legendFormat": "requests",
+          "expr": "up{job=\"relohelper-api\"}",
           "refId": "A"
         }
       ],
-      "title": "Requests Last 5m",
+      "title": "Scrape Health",
       "type": "stat"
     },
     {
@@ -85,19 +102,6 @@
         "defaults": {
           "color": {
             "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 1
-              }
-            ]
           },
           "unit": "short"
         },
@@ -127,12 +131,11 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(increase(relohelper_http_requests_by_status_class_total{status_class=\"4xx\"}[5m]))",
-          "legendFormat": "4xx",
+          "expr": "go_goroutines",
           "refId": "A"
         }
       ],
-      "title": "4xx Last 5m",
+      "title": "Goroutines",
       "type": "stat"
     },
     {
@@ -145,20 +148,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
-              }
-            ]
-          },
-          "unit": "short"
+          "unit": "bytes"
         },
         "overrides": []
       },
@@ -186,12 +176,11 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(increase(relohelper_http_requests_by_status_class_total{status_class=\"5xx\"}[5m]))",
-          "legendFormat": "5xx",
+          "expr": "process_resident_memory_bytes",
           "refId": "A"
         }
       ],
-      "title": "5xx Last 5m",
+      "title": "Resident Memory",
       "type": "stat"
     },
     {
@@ -204,24 +193,7 @@
           "color": {
             "mode": "thresholds"
           },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.2
-              },
-              {
-                "color": "red",
-                "value": 0.5
-              }
-            ]
-          },
-          "unit": "s"
+          "unit": "percentunit"
         },
         "overrides": []
       },
@@ -249,12 +221,11 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(relohelper_http_request_duration_seconds_bucket[5m])))",
-          "legendFormat": "p95",
+          "expr": "rate(process_cpu_seconds_total[5m])",
           "refId": "A"
         }
       ],
-      "title": "Global p95 Latency",
+      "title": "CPU Usage (5m avg)",
       "type": "stat"
     },
     {
@@ -267,17 +238,61 @@
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "reqps"
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 8,
         "x": 0,
         "y": 5
       },
       "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "go_goroutines",
+          "legendFormat": "goroutines",
+          "refId": "A"
+        }
+      ],
+      "title": "Goroutines Over Time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 8,
+        "y": 5
+      },
+      "id": 6,
       "options": {
         "legend": {
           "calcs": [],
@@ -293,59 +308,37 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (route) (rate(relohelper_http_requests_total[5m]))",
-          "legendFormat": "{{route}}",
+          "expr": "go_memstats_alloc_bytes",
+          "legendFormat": "alloc",
           "refId": "A"
-        }
-      ],
-      "title": "Request Rate by Route",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-BlYlRd"
-          },
-          "unit": "short"
         },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 5
-      },
-      "id": 6,
-      "options": {
-        "displayMode": "gradient",
-        "minVizHeight": 10,
-        "minVizWidth": 0,
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true
-      },
-      "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (route) (increase(relohelper_http_requests_total[$__range]))",
-          "legendFormat": "{{route}}",
-          "refId": "A"
+          "expr": "go_memstats_heap_alloc_bytes",
+          "legendFormat": "heap alloc",
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "go_memstats_heap_inuse_bytes",
+          "legendFormat": "heap in use",
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "expr": "go_memstats_stack_inuse_bytes",
+          "legendFormat": "stack in use",
+          "refId": "D"
+        },
+        {
+          "editorMode": "code",
+          "expr": "process_resident_memory_bytes",
+          "legendFormat": "resident",
+          "refId": "E"
         }
       ],
-      "title": "Total Requests by Route",
-      "type": "bargauge"
+      "title": "Memory Usage",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -357,7 +350,7 @@
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "reqps"
+          "unit": "Bps"
         },
         "overrides": []
       },
@@ -383,12 +376,12 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (status_class) (rate(relohelper_http_requests_by_status_class_total[5m]))",
-          "legendFormat": "{{status_class}}",
+          "expr": "rate(go_memstats_alloc_bytes_total[5m])",
+          "legendFormat": "alloc rate",
           "refId": "A"
         }
       ],
-      "title": "Requests by Status Class",
+      "title": "Allocation Rate",
       "type": "timeseries"
     },
     {
@@ -401,13 +394,13 @@
           "color": {
             "mode": "palette-classic"
           },
-          "unit": "reqps"
+          "unit": "percentunit"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 16,
+        "w": 8,
         "x": 8,
         "y": 13
       },
@@ -415,7 +408,7 @@
       "options": {
         "legend": {
           "calcs": [],
-          "displayMode": "table",
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -427,12 +420,12 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (route, status_class) (rate(relohelper_http_requests_by_status_class_total{status_class=~\"4xx|5xx\"}[5m]))",
-          "legendFormat": "{{route}} {{status_class}}",
+          "expr": "rate(process_cpu_seconds_total[5m])",
+          "legendFormat": "cpu usage",
           "refId": "A"
         }
       ],
-      "title": "4xx and 5xx by Route",
+      "title": "CPU Usage",
       "type": "timeseries"
     },
     {
@@ -450,16 +443,16 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 0,
-        "y": 21
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 13
       },
       "id": 9,
       "options": {
         "legend": {
           "calcs": [],
-          "displayMode": "table",
+          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -471,72 +464,21 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum by (le, route) (rate(relohelper_http_request_duration_seconds_bucket[5m])))",
-          "legendFormat": "{{route}} p50",
+          "expr": "rate(go_gc_duration_seconds_sum[5m]) / rate(go_gc_duration_seconds_count[5m])",
+          "legendFormat": "avg gc duration",
           "refId": "A"
-        },
-        {
-          "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(relohelper_http_request_duration_seconds_bucket[5m])))",
-          "legendFormat": "{{route}} p95",
-          "refId": "B"
         }
       ],
-      "title": "Latency p50 and p95 by Route",
+      "title": "GC Duration",
       "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${DS_PROMETHEUS}"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "continuous-BlYlRd"
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 9,
-        "w": 12,
-        "x": 12,
-        "y": 21
-      },
-      "id": 10,
-      "options": {
-        "displayMode": "gradient",
-        "minVizHeight": 10,
-        "minVizWidth": 0,
-        "orientation": "horizontal",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showUnfilled": true
-      },
-      "targets": [
-        {
-          "editorMode": "code",
-          "expr": "topk(5, histogram_quantile(0.95, sum by (le, route) (rate(relohelper_http_request_duration_seconds_bucket[5m]))))",
-          "legendFormat": "{{route}}",
-          "refId": "A"
-        }
-      ],
-      "title": "Top Slow Routes (p95)",
-      "type": "bargauge"
     }
   ],
   "refresh": "10s",
   "schemaVersion": 41,
   "tags": [
     "relohelper",
-    "api",
+    "go",
+    "runtime",
     "observability"
   ],
   "templating": {
@@ -567,8 +509,8 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Relohelper API Overview",
-  "uid": "relohelper-api-overview",
-  "version": 2,
+  "title": "Relohelper Go Runtime",
+  "uid": "relohelper-go-runtime",
+  "version": 1,
   "weekStart": ""
 }
