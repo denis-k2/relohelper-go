@@ -13,11 +13,11 @@ import (
 type Country struct {
 	Code                  string                 `json:"country_code"`
 	Name                  string                 `json:"country"`
-	Population            *int64                 `json:"population,omitzero"`
-	Area                  *int64                 `json:"area,omitzero"`
+	Population            *int64                 `json:"population"`
+	Area                  *int64                 `json:"area"`
 	LastUpdate            string                 `json:"last_update"`
-	NumbeoCountryIndices  *NumbeoCountryIndices  `json:"numbeo_indices,omitempty"`
-	LegatumCountryIndices *LegatumCountryIndices `json:"legatum_indices,omitempty"`
+	NumbeoCountryIndices  *NumbeoCountryIndices  `json:"numbeo_indices,omitzero"`
+	LegatumCountryIndices *LegatumCountryIndices `json:"legatum_indices,omitzero"`
 }
 
 type NumbeoCountryIndices struct {
