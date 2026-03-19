@@ -287,6 +287,10 @@ paths:
                   value:
                     error:
                       include: detailed include blocks are supported only for batch ids requests
+                mixed_modes:
+                  value:
+                    error:
+                      query: country_code cannot be used together with ids
                 unknown_query_param:
                   value:
                     error:

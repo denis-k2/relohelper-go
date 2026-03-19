@@ -32,6 +32,13 @@ func (app *application) listCitiesHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if idsPresent {
+		if qs.Has("country_code") {
+			app.failedValidationResponse(w, r, map[string]string{
+				"query": "country_code cannot be used together with ids",
+			})
+			return
+		}
+
 		if hasDetailedCityInclude(include) && len(ids) > app.config.batch.maxDetailedIDs {
 			app.failedValidationResponse(w, r, map[string]string{
 				"ids": fmt.Sprintf("ids cannot contain more than %d unique values when detailed include blocks are requested", app.config.batch.maxDetailedIDs),

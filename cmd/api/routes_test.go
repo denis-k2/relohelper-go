@@ -246,6 +246,22 @@ func TestCitiesBatchByIDsWithInclude(t *testing.T) {
 	assert.Equal(t, jsonArrayObjectIsNullByID(body, "cities", "geoname_id", int64(3069011), "avg_climate"), true)
 }
 
+// TestCitiesBatchByIDsRejectsCountryCode tests that batch ids mode rejects country_code.
+func TestCitiesBatchByIDsRejectsCountryCode(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	statusCode, header, body := ts.get(t, "/cities?country_code=JPN&ids=5128581,2643743,2147714&include=avg_climate,numbeo_cost,numbeo_indices")
+	assert.Equal(t, statusCode, http.StatusUnprocessableEntity)
+	assert.Equal(t, header.Get("content-type"), "application/json")
+
+	var got gotResponse
+	unmarshalJSON(t, body, &got)
+	assert.DeepEqual(t, got.Error, map[string]any{
+		"query": "country_code cannot be used together with ids",
+	})
+}
+
 // TestCitiesBatchByIDsDetailedIncludeLimit tests include batch limit for "/cities?ids=...&include=...".
 func TestCitiesBatchByIDsDetailedIncludeLimit(t *testing.T) {
 	ts := newTestServer(testApp.routes())
