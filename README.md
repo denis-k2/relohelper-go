@@ -36,4 +36,35 @@ Performance comparison between Go and Python implementations is documented [here
 - Maintain reproducible benchmarking
 - Incrementally refine architecture and documentation
 
+## Monitoring Stack
+
+The project includes a minimal Prometheus + Grafana stack on top of the built-in observability endpoints.
+
+### What is available
+
+- API: `http://127.0.0.1:4000`
+- Healthcheck: `http://127.0.0.1:4000/healthcheck`
+- Readiness: `http://127.0.0.1:4000/readyz`
+- Prometheus metrics: `http://127.0.0.1:4000/metrics`
+- Expvar: `http://127.0.0.1:4000/debug/vars`
+- Prometheus UI: `http://127.0.0.1:9090`
+- Grafana: `http://127.0.0.1:3000` (`admin` / `admin`)
+
+### How to run locally
+
+1. Start the API locally.
+2. Start the monitoring stack:
+
+```bash
+docker compose -f monitoring/docker-compose.yml up -d
+```
+
+Prometheus scrapes the API at `host.docker.internal:4000`, so the API should be running on the host machine on port `4000`.
+
+### Files
+
+- Compose: `monitoring/docker-compose.yml`
+- Prometheus config: `monitoring/prometheus/prometheus.yml`
+- Grafana dashboard: `monitoring/grafana/dashboards/relohelper-api-overview.json`
+
 More detailed project description will be added as development progresses.

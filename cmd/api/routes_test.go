@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -64,6 +65,37 @@ func TestReadyz(t *testing.T) {
 	checks, ok := got["checks"].(map[string]any)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, checks["database"], "available")
+}
+
+func TestMetrics(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	_, _, _ = ts.get(t, "/healthcheck")
+	_, _, _ = ts.get(t, "/readyz")
+
+	rs, err := ts.Client().Get(ts.URL + "/metrics")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := rs.Body.Close(); err != nil {
+			t.Errorf("failed to close response body: %v", err)
+		}
+	}()
+
+	body, err := io.ReadAll(rs.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	metrics := string(body)
+	assert.Equal(t, rs.StatusCode, http.StatusOK)
+	assert.Equal(t, strings.Contains(metrics, "relohelper_http_requests_total"), true)
+	assert.Equal(t, strings.Contains(metrics, "relohelper_http_requests_by_status_class_total"), true)
+	assert.Equal(t, strings.Contains(metrics, "relohelper_http_request_duration_seconds"), true)
+	assert.Equal(t, strings.Contains(metrics, `route="/healthcheck"`), true)
+	assert.Equal(t, strings.Contains(metrics, `route="/readyz"`), true)
 }
 
 // TestCities tests the “/cities” endpoint.
