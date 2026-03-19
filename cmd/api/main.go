@@ -58,6 +58,7 @@ type config struct {
 type application struct {
 	config config
 	logger *slog.Logger
+	db     *sql.DB
 	models data.Models
 	mailer mailer.Mailer
 	wg     sync.WaitGroup
@@ -94,6 +95,7 @@ func run() error {
 	app := &application{
 		config: cfg,
 		logger: logger,
+		db:     db,
 		models: data.NewModels(db),
 		mailer: mailer.NewSMTPMailer(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
 	}
