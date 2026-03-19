@@ -7,9 +7,35 @@ info:
 servers:
   - url: /
 tags:
+  - name: Health
   - name: Cities
   - name: Countries
 paths:
+  /healthcheck:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        "200":
+          description: Service health status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthcheckEnvelope"
+              example:
+                status: available
+                system_info:
+                  environment: development
+                  version: "0.1.0"
+        "422":
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                error:
+                  query: unknown query parameter "foo"
   /cities:
     get:
       tags: [Cities]
@@ -19,21 +45,27 @@ paths:
           in: query
           schema:
             type: string
+          example: JPN
           description: Case-insensitive country filter for list mode.
         - name: ids
           in: query
           schema:
             type: string
+          example: 1850147,5128581
           description: |
-            Comma-separated batch of positive geoname ids. When present, the endpoint works in batch mode.
+            Comma-separated batch of positive geoname ids.
+            Maximum 100 unique values.
+            When present, the endpoint works in batch mode.
         - name: include
           in: query
           schema:
             type: string
+          example: numbeo_cost,numbeo_indices,avg_climate
           description: |
             Comma-separated include values.
-            List mode supports only `country`.
-            Batch mode supports `country,numbeo_cost,numbeo_indices,avg_climate`.
+            List mode supports only country.
+            Batch mode supports country, numbeo_cost, numbeo_indices, avg_climate.
+            When detailed include blocks are requested, the batch limit is 20 unique ids.
       responses:
         "200":
           description: City list or batch result.
@@ -41,18 +73,224 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CitiesEnvelope"
+              examples:
+                list:
+                  summary: Real list response fragment
+                  value:
+                    cities:
+                      - geoname_id: 1489425
+                        city: Tomsk
+                        country_code: RUS
+                        country: Russian Federation
+                        population: 574002
+                        latitude: 56.50032
+                        longitude: 84.98204
+                        timezone: Asia/Tomsk
+                        last_update: "2026-03-12"
+                      - geoname_id: 1614295
+                        city: Pattaya
+                        country_code: THA
+                        country: Thailand
+                        population: 116417
+                        latitude: 12.93333
+                        longitude: 100.88333
+                        timezone: Asia/Bangkok
+                        last_update: "2026-03-12"
+                      - geoname_id: 1850147
+                        city: Tokyo
+                        country_code: JPN
+                        country: Japan
+                        population: 9733276
+                        latitude: 35.6895
+                        longitude: 139.69171
+                        timezone: Asia/Tokyo
+                        last_update: "2026-03-12"
+                      - geoname_id: 5128581
+                        city: New York
+                        state_code: US-NY
+                        country_code: USA
+                        country: United States of America
+                        population: 8804190
+                        latitude: 40.71427
+                        longitude: -74.00597
+                        timezone: America/New_York
+                        last_update: "2026-03-12"
+                filtered_by_country:
+                  summary: Real filtered list response fragment for country_code=rus
+                  value:
+                    cities:
+                      - geoname_id: 524901
+                        city: Moscow
+                        country_code: RUS
+                        country: Russian Federation
+                        population: 10381222
+                        latitude: 55.75222
+                        longitude: 37.61556
+                        timezone: Europe/Moscow
+                        last_update: "2026-03-12"
+                      - geoname_id: 1489425
+                        city: Tomsk
+                        country_code: RUS
+                        country: Russian Federation
+                        population: 574002
+                        latitude: 56.50032
+                        longitude: 84.98204
+                        timezone: Asia/Tomsk
+                        last_update: "2026-03-12"
+                      - geoname_id: 2013348
+                        city: Vladivostok
+                        country_code: RUS
+                        country: Russian Federation
+                        population: 604901
+                        latitude: 43.10562
+                        longitude: 131.87353
+                        timezone: Asia/Vladivostok
+                        last_update: "2026-03-12"
+                batch:
+                  summary: Real batch response fragment with include
+                  value:
+                    cities:
+                      - geoname_id: 2147714
+                        city: Sydney
+                        country_code: AUS
+                        country: Australia
+                        population: 5557233
+                        latitude: -33.86785
+                        longitude: 151.20732
+                        timezone: Australia/Sydney
+                        last_update: "2026-03-12"
+                        numbeo_cost:
+                          currency: USD
+                          last_update: "2026-03-09"
+                          prices:
+                            - category: Buy Apartment Price
+                              param: Price per Square Meter to Buy Apartment in City Centre
+                              cost: 11999.07
+                              range_lower: 8388
+                              range_upper: 20970
+                            - category: Buy Apartment Price
+                              param: Price per Square Meter to Buy Apartment Outside of Centre
+                              cost: 7629.17
+                              range_lower: 5592
+                              range_upper: 10485
+                        numbeo_indices:
+                          cost_of_living: 80.3
+                          rent: 55.5
+                          cost_of_living_plus_rent: 68.8
+                          groceries: 85.8
+                          local_purchasing_power: 117.5
+                          quality_of_life: 183.7
+                          property_price_to_income_ratio: 11.9
+                          traffic_commute_time: 43.5
+                          climate: 97.1
+                          safety: 66.1
+                          health_care: 74.6
+                          pollution: 28.5
+                          last_update: "2026-03-12"
+                        avg_climate:
+                          high_temp:
+                            [
+                              25.9,
+                              25.8,
+                              24.8,
+                              22.4,
+                              19.5,
+                              17,
+                              16.3,
+                              17.8,
+                              20,
+                              22.1,
+                              23.6,
+                              25.2,
+                            ]
+                      - geoname_id: 2643743
+                        city: London
+                        country_code: GBR
+                        country: United Kingdom of Great Britain and Northern Ireland
+                        population: 8961989
+                        latitude: 51.50853
+                        longitude: -0.12574
+                        timezone: Europe/London
+                        last_update: "2026-03-12"
+                        numbeo_cost:
+                          currency: USD
+                          last_update: "2026-03-14"
+                          prices:
+                            - category: Buy Apartment Price
+                              param: Price per Square Meter to Buy Apartment in City Centre
+                              cost: 19926.05
+                              range_lower: 13237
+                              range_upper: 35739.91
+                            - category: Buy Apartment Price
+                              param: Price per Square Meter to Buy Apartment Outside of Centre
+                              cost: 10616.55
+                              range_lower: 8776.13
+                              range_upper: 14248.19
+                        numbeo_indices:
+                          cost_of_living: 89.2
+                          rent: 66.8
+                          cost_of_living_plus_rent: 78.9
+                          groceries: 70.4
+                          local_purchasing_power: 121.9
+                          quality_of_life: 145.3
+                          property_price_to_income_ratio: 15.4
+                          traffic_commute_time: 44.6
+                          climate: 88.3
+                          safety: 44.5
+                          health_care: 69.6
+                          pollution: 57.8
+                          last_update: "2026-03-12"
+                        avg_climate:
+                          high_temp:
+                            [
+                              6.8,
+                              7.6,
+                              10.6,
+                              14.3,
+                              16.8,
+                              19.8,
+                              22.3,
+                              21.9,
+                              19,
+                              15.3,
+                              10.4,
+                              7.8,
+                            ]
         "404":
           description: No matching cities found.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                error: the requested resource could not be found
         "422":
           description: Invalid query parameters.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                invalid_include:
+                  value:
+                    error:
+                      include: include contains unsupported value "foo"
+                invalid_ids:
+                  value:
+                    error:
+                      ids: ids must contain only positive integers
+                invalid_country_code:
+                  value:
+                    error:
+                      country_code: must be exactly three English letters
+                list_detailed_include:
+                  value:
+                    error:
+                      include: detailed include blocks are supported only for batch ids requests
+                unknown_query_param:
+                  value:
+                    error:
+                      query: unknown query parameter "foo"
   /cities/{id}:
     get:
       tags: [Cities]
@@ -63,13 +301,14 @@ paths:
           required: true
           schema:
             type: integer
-            format: int64
+          example: 1850147
           description: Geoname identifier used by the route.
         - name: include
           in: query
           schema:
             type: string
-          description: Comma-separated include values (country,numbeo_cost,numbeo_indices,avg_climate).
+          example: country,numbeo_cost,avg_climate
+          description: Comma-separated include values (country, numbeo_cost, numbeo_indices, avg_climate).
       responses:
         "200":
           description: City detail.
@@ -77,18 +316,117 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CityEnvelope"
+              example:
+                city:
+                  geoname_id: 1850147
+                  city: Tokyo
+                  country_code: JPN
+                  country: Japan
+                  population: 9733276
+                  latitude: 35.6895
+                  longitude: 139.69171
+                  timezone: Asia/Tokyo
+                  last_update: "2026-03-12"
+                  numbeo_cost:
+                    currency: USD
+                    last_update: "2026-03-13"
+                    prices:
+                      - category: Buy Apartment Price
+                        param: Price per Square Meter to Buy Apartment in City Centre
+                        cost: 11345.61
+                        range_lower: 8085.82
+                        range_upper: 18779.92
+                      - category: Buy Apartment Price
+                        param: Price per Square Meter to Buy Apartment Outside of Centre
+                        cost: 5095.62
+                        range_lower: 3831.1
+                        range_upper: 7324.17
+                  numbeo_indices:
+                    cost_of_living: 54.7
+                    rent: 23.4
+                    cost_of_living_plus_rent: 40.2
+                    groceries: 63.8
+                    local_purchasing_power: 124.6
+                    quality_of_life: 177.8
+                    property_price_to_income_ratio: 16.1
+                    traffic_commute_time: 42.7
+                    climate: 85.3
+                    safety: 75.8
+                    health_care: 78.3
+                    pollution: 42.5
+                    last_update: "2026-03-12"
+                  avg_climate:
+                    high_temp:
+                      [
+                        8.9,
+                        9.8,
+                        13,
+                        17.6,
+                        22.8,
+                        25.1,
+                        29.3,
+                        31,
+                        26.8,
+                        21.6,
+                        16.5,
+                        11.2,
+                      ]
+                    low_temp:
+                      [
+                        2.8,
+                        3.5,
+                        6.2,
+                        10.6,
+                        16.1,
+                        19.3,
+                        23.3,
+                        25.1,
+                        21.3,
+                        16.3,
+                        10.9,
+                        5.9,
+                      ]
+                    sea_temp:
+                      [
+                        15.7,
+                        14,
+                        14.3,
+                        15.8,
+                        17.8,
+                        20.8,
+                        24.2,
+                        25.7,
+                        25.3,
+                        22.2,
+                        20,
+                        17.3,
+                      ]
         "404":
           description: City not found.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                error: the requested resource could not be found
         "422":
           description: Invalid query parameters.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                error:
+                  include: include contains unsupported value "foo"
+              examples:
+                invalid_include:
+                  value:
+                    error:
+                      include: include contains unsupported value "foo"
+                unknown_query_param:
+                  value:
+                    error:
+                      query: unknown query parameter "foo"
   /countries:
     get:
       tags: [Countries]
@@ -98,14 +436,18 @@ paths:
           in: query
           schema:
             type: string
+          example: USA,CAN
           description: |
-            Comma-separated batch of country codes. When present, the endpoint works in batch mode.
+            Comma-separated batch of country codes.
+            Maximum 20 unique values.
+            When present, the endpoint works in batch mode.
         - name: include
           in: query
           schema:
             type: string
+          example: numbeo_indices,legatum_indices
           description: |
-            Comma-separated include values for batch mode only: `numbeo_indices,legatum_indices`.
+            Comma-separated include values for batch mode only: numbeo_indices, legatum_indices.
       responses:
         "200":
           description: Country list or batch result.
@@ -113,18 +455,118 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CountriesEnvelope"
+              examples:
+                list:
+                  summary: Real list response fragment
+                  value:
+                    countries:
+                      - country_code: ARG
+                        country: Argentina
+                        population: 46003700
+                        area: 2780400
+                        last_update: "2026-03-17"
+                      - country_code: BGR
+                        country: Bulgaria
+                        population: 6667660
+                        area: 110879
+                        last_update: "2026-03-17"
+                      - country_code: CAN
+                        country: Canada
+                        population: 40467700
+                        area: 9984670
+                        last_update: "2026-03-17"
+                      - country_code: DEU
+                        country: Germany
+                        population: 83644300
+                        area: 357114
+                        last_update: "2026-03-17"
+                batch:
+                  summary: Real batch response fragment with include
+                  value:
+                    countries:
+                      - country_code: CAN
+                        country: Canada
+                        population: 40467700
+                        area: 9984670
+                        last_update: "2026-03-17"
+                        numbeo_indices:
+                          cost_of_living: 63
+                          rent: 31.5
+                          cost_of_living_plus_rent: 48.9
+                          groceries: 69.6
+                          restaurant_price: 64.1
+                          local_purchasing_power: 119.4
+                          quality_of_life: 172
+                          property_price_to_income_ratio: 7.5
+                          traffic_commute_time: 33.4
+                          climate: 54.9
+                          safety: 54.4
+                          health_care: 68.6
+                          pollution: 29.7
+                          avg_salary_usd: 3054.81
+                          last_update: "2026-03-12"
+                        legatum_indices:
+                          safety_and_security:
+                            rank_2023: 18
+                            score_2023: 87.9
+                          governance:
+                            rank_2023: 12
+                            score_2023: 82.3
+                      - country_code: RUS
+                        country: Russian Federation
+                        population: 143394000
+                        area: 17098242
+                        last_update: "2026-03-17"
+                        numbeo_indices:
+                          cost_of_living: 36.5
+                          rent: 12.3
+                          cost_of_living_plus_rent: 25.7
+                          groceries: 35.7
+                          restaurant_price: 35.4
+                          local_purchasing_power: 61.6
+                          quality_of_life: 115.6
+                          property_price_to_income_ratio: 13.7
+                          traffic_commute_time: 43.3
+                          climate: 38
+                          safety: 61.8
+                          health_care: 61.6
+                          pollution: 58.4
+                          avg_salary_usd: 811.12
+                          last_update: "2026-03-12"
+                        legatum_indices:
+                          safety_and_security:
+                            rank_2023: 139
+                            score_2023: 51.6
+                          personal_freedom:
+                            rank_2023: 140
+                            score_2023: 34.4
         "404":
           description: No matching countries found.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                error: the requested resource could not be found
         "422":
           description: Invalid query parameters.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                include_without_batch:
+                  value:
+                    error:
+                      include: include is supported only for countries batch endpoint with country_codes
+                invalid_country_codes:
+                  value:
+                    error:
+                      country_codes: country_codes contains an empty value
+                unknown_query_param:
+                  value:
+                    error:
+                      query: unknown query parameter "foo"
   /countries/{alpha3}:
     get:
       tags: [Countries]
@@ -135,12 +577,14 @@ paths:
           required: true
           schema:
             type: string
+          example: JPN
           description: Alpha-3 country code used by the route.
         - name: include
           in: query
           schema:
             type: string
-          description: Comma-separated include values (numbeo_indices,legatum_indices).
+          example: numbeo_indices,legatum_indices
+          description: Comma-separated include values (numbeo_indices, legatum_indices).
       responses:
         "200":
           description: Country detail.
@@ -148,20 +592,79 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CountryEnvelope"
+              example:
+                country:
+                  country_code: RUS
+                  country: Russian Federation
+                  population: 143394000
+                  area: 17098242
+                  last_update: "2026-03-17"
+                  numbeo_indices:
+                    cost_of_living: 36.5
+                    rent: 12.3
+                    cost_of_living_plus_rent: 25.7
+                    groceries: 35.7
+                    restaurant_price: 35.4
+                    local_purchasing_power: 61.6
+                    quality_of_life: 115.6
+                    property_price_to_income_ratio: 13.7
+                    traffic_commute_time: 43.3
+                    climate: 38
+                    safety: 61.8
+                    health_care: 61.6
+                    pollution: 58.4
+                    avg_salary_usd: 811.12
+                    last_update: "2026-03-12"
+                  legatum_indices:
+                    safety_and_security:
+                      rank_2023: 139
+                      score_2023: 51.6
+                    governance:
+                      rank_2023: 111
+                      score_2023: 41.1
         "404":
           description: Country not found.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+              example:
+                error: the requested resource could not be found
         "422":
           description: Invalid query parameters.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+              examples:
+                invalid_include:
+                  value:
+                    error:
+                      include: include contains unsupported value "foo"
+                invalid_country_code:
+                  value:
+                    error:
+                      country_code: must be exactly three English letters
+                unknown_query_param:
+                  value:
+                    error:
+                      query: unknown query parameter "foo"
 components:
   schemas:
+    HealthcheckEnvelope:
+      type: object
+      required: [status, system_info]
+      properties:
+        status:
+          type: string
+        system_info:
+          type: object
+          required: [environment, version]
+          properties:
+            environment:
+              type: string
+            version:
+              type: string
     CitiesEnvelope:
       type: object
       required: [cities]
@@ -194,11 +697,11 @@ components:
       type: object
       properties:
         error:
-          type: string
-        errors:
-          type: object
-          additionalProperties:
-            type: string
+          oneOf:
+            - type: string
+            - type: object
+              additionalProperties:
+                type: string
     City:
       type: object
       required:
@@ -206,6 +709,7 @@ components:
         - city
         - country_code
         - country
+        - population
         - latitude
         - longitude
         - timezone
@@ -213,19 +717,16 @@ components:
       properties:
         geoname_id:
           type: integer
-          format: int64
         city:
           type: string
         state_code:
           type: string
-          nullable: true
         country_code:
           type: string
         country:
           type: string
         population:
           type: integer
-          format: int64
           nullable: true
         latitude:
           type: number
@@ -254,6 +755,8 @@ components:
       required:
         - country_code
         - country
+        - population
+        - area
         - last_update
       properties:
         country_code:
@@ -262,11 +765,9 @@ components:
           type: string
         population:
           type: integer
-          format: int64
           nullable: true
         area:
           type: integer
-          format: int64
           nullable: true
         last_update:
           type: string
