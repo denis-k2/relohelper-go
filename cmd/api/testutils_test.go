@@ -73,6 +73,7 @@ func newTestApplication(cfg config) (*application, *sql.DB, error) {
 	return &application{
 		config: cfg,
 		logger: logger,
+		db:     db,
 		models: data.NewModels(db),
 		mailer: mocks.NewMockMailer(),
 	}, db, nil
@@ -105,6 +106,37 @@ func (ts *testServer) get(t *testing.T, urlPath string) (int, http.Header, []byt
 			t.Errorf("failed to close response body: %v", err)
 		}
 	}()
+	body, err := io.ReadAll(rs.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return rs.StatusCode, rs.Header, bytes.TrimSpace(body)
+}
+
+func (ts *testServer) request(t *testing.T, method string, urlPath string, headers http.Header) (int, http.Header, []byte) {
+	req, err := http.NewRequest(method, ts.URL+urlPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for key, values := range headers {
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
+	}
+
+	rs, err := ts.Client().Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() {
+		if err := rs.Body.Close(); err != nil {
+			t.Errorf("failed to close response body: %v", err)
+		}
+	}()
+
 	body, err := io.ReadAll(rs.Body)
 	if err != nil {
 		t.Fatal(err)

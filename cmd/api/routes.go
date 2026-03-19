@@ -9,6 +9,8 @@ import (
 
 func (app *application) routes() http.Handler {
 	router := chi.NewRouter()
+	router.Use(app.requestID)
+	router.Use(app.logRequest)
 	router.Use(app.recoverPanic)
 	router.Use(app.enableCORS)
 	router.Use(app.rateLimit)
@@ -20,6 +22,7 @@ func (app *application) routes() http.Handler {
 	router.MethodNotAllowed(app.methodNotAllowedResponse)
 
 	router.Get("/healthcheck", app.healthcheckHandler)
+	router.Get("/readyz", app.readinessHandler)
 
 	router.Get("/cities", app.listCitiesHandler)
 	router.Get("/countries", app.listCountriesHandler)

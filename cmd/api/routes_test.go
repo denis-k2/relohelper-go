@@ -29,6 +29,43 @@ func TestHealthcheck(t *testing.T) {
 	assert.Equal(t, got["status"], "available")
 }
 
+func TestHealthcheckSetsRequestID(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	statusCode, header, _ := ts.get(t, "/healthcheck")
+	assert.Equal(t, statusCode, http.StatusOK)
+	assert.Equal(t, header.Get("X-Request-ID") != "", true)
+}
+
+func TestHealthcheckEchoesIncomingRequestID(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	statusCode, header, _ := ts.request(t, http.MethodGet, "/healthcheck", http.Header{
+		"X-Request-ID": []string{"req-12345"},
+	})
+	assert.Equal(t, statusCode, http.StatusOK)
+	assert.Equal(t, header.Get("X-Request-ID"), "req-12345")
+}
+
+func TestReadyz(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	statusCode, header, body := ts.get(t, "/readyz")
+	assert.Equal(t, statusCode, http.StatusOK)
+	assert.Equal(t, header.Get("content-type"), "application/json")
+
+	var got envelope
+	unmarshalJSON(t, body, &got)
+	assert.Equal(t, got["status"], "ready")
+
+	checks, ok := got["checks"].(map[string]any)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, checks["database"], "available")
+}
+
 // TestCities tests the “/cities” endpoint.
 func TestCities(t *testing.T) {
 	ts := newTestServer(testApp.routes())
