@@ -69,6 +69,7 @@ func newTestApplication(cfg config) (*application, *sql.DB, error) {
 		return nil, nil, err
 	}
 	logger.Info("database connection pool established")
+	setDBStatsProvider(db)
 
 	return &application{
 		config: cfg,

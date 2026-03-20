@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/denis-k2/relohelper-go/internal/assert"
 	"github.com/denis-k2/relohelper-go/internal/data"
 	"github.com/denis-k2/relohelper-go/internal/mocks"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 )
 
 // TestHealthcheck tests the "/healthcheck" endpoint.
@@ -64,6 +66,79 @@ func TestReadyz(t *testing.T) {
 	checks, ok := got["checks"].(map[string]any)
 	assert.Equal(t, ok, true)
 	assert.Equal(t, checks["database"], "available")
+}
+
+func TestMetrics(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	_, _, _ = ts.get(t, "/healthcheck")
+	_, _, _ = ts.get(t, "/readyz")
+
+	rs, err := ts.Client().Get(ts.URL + "/metrics")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := rs.Body.Close(); err != nil {
+			t.Errorf("failed to close response body: %v", err)
+		}
+	}()
+
+	body, err := io.ReadAll(rs.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	metrics := string(body)
+	assert.Equal(t, rs.StatusCode, http.StatusOK)
+	assert.Equal(t, strings.Contains(metrics, "relohelper_http_requests_total"), true)
+	assert.Equal(t, strings.Contains(metrics, "relohelper_http_requests_by_status_class_total"), true)
+	assert.Equal(t, strings.Contains(metrics, "relohelper_http_request_duration_seconds"), true)
+	assert.Equal(t, strings.Contains(metrics, `route="/healthcheck"`), true)
+	assert.Equal(t, strings.Contains(metrics, `route="/readyz"`), true)
+}
+
+func TestRateLimiterRejectedMetric(t *testing.T) {
+	cfg := testApp.config
+	cfg.limiter.enabled = true
+	cfg.limiter.rps = 0.0001
+	cfg.limiter.burst = 1
+
+	limitedApp := &application{
+		config: cfg,
+		logger: testApp.logger,
+		db:     testApp.db,
+		models: testApp.models,
+		mailer: testApp.mailer,
+	}
+
+	ts := newTestServer(limitedApp.routes())
+	defer ts.Close()
+
+	beforeRejected := testutil.ToFloat64(rateLimiterRejectedMetric)
+	beforeAllowed := testutil.ToFloat64(rateLimiterAllowedMetric)
+
+	statusCode, _, _ := ts.get(t, "/healthcheck")
+	assert.Equal(t, statusCode, http.StatusOK)
+
+	statusCode, _, _ = ts.get(t, "/healthcheck")
+	assert.Equal(t, statusCode, http.StatusTooManyRequests)
+
+	afterRejected := testutil.ToFloat64(rateLimiterRejectedMetric)
+	afterAllowed := testutil.ToFloat64(rateLimiterAllowedMetric)
+
+	assert.Equal(t, afterRejected-beforeRejected, float64(1))
+	assert.Equal(t, afterAllowed-beforeAllowed, float64(1))
+}
+
+func TestDBStatsProviderMetrics(t *testing.T) {
+	assert.Equal(t, testutil.ToFloat64(dbMaxOpenConnectionsMetric) > 0, true)
+	assert.Equal(t, testutil.ToFloat64(dbOpenConnectionsMetric) >= 0, true)
+	assert.Equal(t, testutil.ToFloat64(dbInUseConnectionsMetric) >= 0, true)
+	assert.Equal(t, testutil.ToFloat64(dbIdleConnectionsMetric) >= 0, true)
+	assert.Equal(t, testutil.ToFloat64(dbWaitCountMetric) >= 0, true)
+	assert.Equal(t, testutil.ToFloat64(dbWaitDurationMetric) >= 0, true)
 }
 
 // TestCities tests the “/cities” endpoint.

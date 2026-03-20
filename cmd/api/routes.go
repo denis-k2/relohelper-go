@@ -5,11 +5,13 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func (app *application) routes() http.Handler {
 	router := chi.NewRouter()
 	router.Use(app.requestID)
+	router.Use(app.collectPrometheusMetrics)
 	router.Use(app.logRequest)
 	router.Use(app.recoverPanic)
 	router.Use(app.enableCORS)
@@ -23,6 +25,7 @@ func (app *application) routes() http.Handler {
 
 	router.Get("/healthcheck", app.healthcheckHandler)
 	router.Get("/readyz", app.readinessHandler)
+	router.Method(http.MethodGet, "/metrics", promhttp.Handler())
 
 	router.Get("/cities", app.listCitiesHandler)
 	router.Get("/countries", app.listCountriesHandler)
