@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"expvar"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -24,6 +26,8 @@ var (
 	responses2xxMetric  = expvar.NewInt("responses_2xx_total")
 	responses4xxMetric  = expvar.NewInt("responses_4xx_total")
 	responses5xxMetric  = expvar.NewInt("responses_5xx_total")
+	dbStatsProviderMu   sync.RWMutex
+	dbStatsProvider     = func() sql.DBStats { return sql.DBStats{} }
 
 	httpRequestsTotalMetric = promauto.NewCounterVec(
 		prometheus.CounterOpts{
@@ -47,7 +51,82 @@ var (
 		},
 		[]string{"method", "route", "status_class"},
 	)
+	rateLimiterRejectedMetric = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "relohelper_rate_limiter_rejected_total",
+			Help: "Total number of HTTP requests rejected by the rate limiter.",
+		},
+	)
+	rateLimiterAllowedMetric = promauto.NewCounter(
+		prometheus.CounterOpts{
+			Name: "relohelper_rate_limiter_allowed_total",
+			Help: "Total number of HTTP requests allowed by the rate limiter.",
+		},
+	)
+	dbOpenConnectionsMetric = promauto.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "relohelper_db_open_connections",
+			Help: "Current number of open database connections.",
+		},
+		func() float64 {
+			return float64(getDBStats().OpenConnections)
+		},
+	)
+	dbInUseConnectionsMetric = promauto.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "relohelper_db_in_use_connections",
+			Help: "Current number of database connections in use.",
+		},
+		func() float64 {
+			return float64(getDBStats().InUse)
+		},
+	)
+	dbIdleConnectionsMetric = promauto.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "relohelper_db_idle_connections",
+			Help: "Current number of idle database connections.",
+		},
+		func() float64 {
+			return float64(getDBStats().Idle)
+		},
+	)
+	dbWaitCountMetric = promauto.NewCounterFunc(
+		prometheus.CounterOpts{
+			Name: "relohelper_db_wait_count_total",
+			Help: "Total number of waits for a database connection.",
+		},
+		func() float64 {
+			return float64(getDBStats().WaitCount)
+		},
+	)
+	dbWaitDurationMetric = promauto.NewCounterFunc(
+		prometheus.CounterOpts{
+			Name: "relohelper_db_wait_duration_seconds_total",
+			Help: "Total time blocked waiting for a database connection.",
+		},
+		func() float64 {
+			return getDBStats().WaitDuration.Seconds()
+		},
+	)
+	dbMaxOpenConnectionsMetric = promauto.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "relohelper_db_max_open_connections",
+			Help: "Configured maximum number of open database connections.",
+		},
+		func() float64 {
+			return float64(getDBStats().MaxOpenConnections)
+		},
+	)
 )
+
+var _ = []any{
+	dbOpenConnectionsMetric,
+	dbInUseConnectionsMetric,
+	dbIdleConnectionsMetric,
+	dbWaitCountMetric,
+	dbWaitDurationMetric,
+	dbMaxOpenConnectionsMetric,
+}
 
 func (app *application) contextSetRequestID(r *http.Request, requestID string) *http.Request {
 	ctx := context.WithValue(r.Context(), requestIDContextKey, requestID)
@@ -164,6 +243,27 @@ func newRequestID() string {
 	}
 
 	return hex.EncodeToString(b[:])
+}
+
+func setDBStatsProvider(db *sql.DB) {
+	dbStatsProviderMu.Lock()
+	defer dbStatsProviderMu.Unlock()
+
+	dbStatsProvider = func() sql.DBStats {
+		if db == nil {
+			return sql.DBStats{}
+		}
+
+		return db.Stats()
+	}
+}
+
+func getDBStats() sql.DBStats {
+	dbStatsProviderMu.RLock()
+	provider := dbStatsProvider
+	dbStatsProviderMu.RUnlock()
+
+	return provider()
 }
 
 type statusRecorder struct {

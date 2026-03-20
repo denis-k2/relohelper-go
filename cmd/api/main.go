@@ -91,6 +91,7 @@ func run() error {
 	logger.Info("database connection pool established")
 
 	registerMetrics(version, db)
+	setDBStatsProvider(db)
 
 	app := &application{
 		config: cfg,

@@ -27,44 +27,12 @@
         "uid": "${DS_PROMETHEUS}"
       },
       "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [
-            {
-              "options": {
-                "0": {
-                  "index": 0,
-                  "text": "Down"
-                },
-                "1": {
-                  "index": 1,
-                  "text": "Up"
-                }
-              },
-              "type": "value"
-            }
-          ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": 0
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          }
-        },
+        "defaults": {},
         "overrides": []
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
+        "w": 4,
         "x": 0,
         "y": 0
       },
@@ -90,7 +58,7 @@
           "refId": "A"
         }
       ],
-      "title": "Scrape Health",
+      "title": "Prometheus Scrape Health",
       "type": "stat"
     },
     {
@@ -100,17 +68,14 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
           "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 6,
+        "w": 4,
+        "x": 4,
         "y": 0
       },
       "id": 2,
@@ -145,17 +110,14 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
           "unit": "bytes"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 12,
+        "w": 4,
+        "x": 8,
         "y": 0
       },
       "id": 3,
@@ -180,7 +142,7 @@
           "refId": "A"
         }
       ],
-      "title": "Resident Memory",
+      "title": "Process Resident Memory",
       "type": "stat"
     },
     {
@@ -190,17 +152,14 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
           "unit": "percentunit"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 18,
+        "w": 4,
+        "x": 12,
         "y": 0
       },
       "id": 4,
@@ -225,7 +184,91 @@
           "refId": "A"
         }
       ],
-      "title": "CPU Usage (5m avg)",
+      "title": "Process CPU Usage (5m avg)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "relohelper_db_in_use_connections",
+          "refId": "A"
+        }
+      ],
+      "title": "DB Pool In Use",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "relohelper_db_in_use_connections / clamp_min(relohelper_db_max_open_connections, 1)",
+          "refId": "A"
+        }
+      ],
+      "title": "DB Pool Usage Ratio",
       "type": "stat"
     },
     {
@@ -248,7 +291,7 @@
         "x": 0,
         "y": 5
       },
-      "id": 5,
+      "id": 7,
       "options": {
         "legend": {
           "calcs": [],
@@ -292,7 +335,7 @@
         "x": 8,
         "y": 5
       },
-      "id": 6,
+      "id": 8,
       "options": {
         "legend": {
           "calcs": [],
@@ -337,7 +380,7 @@
           "refId": "E"
         }
       ],
-      "title": "Memory Usage",
+      "title": "Go Memory and RSS",
       "type": "timeseries"
     },
     {
@@ -360,7 +403,7 @@
         "x": 0,
         "y": 13
       },
-      "id": 7,
+      "id": 9,
       "options": {
         "legend": {
           "calcs": [],
@@ -404,7 +447,7 @@
         "x": 8,
         "y": 13
       },
-      "id": 8,
+      "id": 10,
       "options": {
         "legend": {
           "calcs": [],
@@ -425,7 +468,7 @@
           "refId": "A"
         }
       ],
-      "title": "CPU Usage",
+      "title": "Process CPU Usage",
       "type": "timeseries"
     },
     {
@@ -448,7 +491,7 @@
         "x": 16,
         "y": 13
       },
-      "id": 9,
+      "id": 11,
       "options": {
         "legend": {
           "calcs": [],
@@ -464,12 +507,162 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "rate(go_gc_duration_seconds_sum[5m]) / rate(go_gc_duration_seconds_count[5m])",
+          "expr": "rate(go_gc_duration_seconds_sum[5m]) / clamp_min(rate(go_gc_duration_seconds_count[5m]), 1e-9)",
           "legendFormat": "avg gc duration",
           "refId": "A"
         }
       ],
-      "title": "GC Duration",
+      "title": "Average GC Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "relohelper_db_open_connections",
+          "legendFormat": "open",
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "relohelper_db_in_use_connections",
+          "legendFormat": "in use",
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "relohelper_db_idle_connections",
+          "legendFormat": "idle",
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "expr": "relohelper_db_max_open_connections",
+          "legendFormat": "max open",
+          "refId": "D"
+        }
+      ],
+      "title": "DB Pool Connections",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 6,
+        "x": 12,
+        "y": 21
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "rate(relohelper_db_wait_count_total[5m])",
+          "legendFormat": "waits/sec",
+          "refId": "A"
+        }
+      ],
+      "title": "DB Pool Wait Count Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 6,
+        "x": 18,
+        "y": 21
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "rate(relohelper_db_wait_duration_seconds_total[5m])",
+          "legendFormat": "wait duration/sec",
+          "refId": "A"
+        }
+      ],
+      "title": "DB Pool Wait Duration Rate",
       "type": "timeseries"
     }
   ],
@@ -479,7 +672,8 @@
     "relohelper",
     "go",
     "runtime",
-    "observability"
+    "observability",
+    "saturation"
   ],
   "templating": {
     "list": [
@@ -511,6 +705,6 @@
   "timezone": "browser",
   "title": "Relohelper Go Runtime",
   "uid": "relohelper-go-runtime",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }
