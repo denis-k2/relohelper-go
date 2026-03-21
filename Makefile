@@ -22,10 +22,15 @@ confirm:
 # DEVELOPMENT
 # ==================================================================================== #
 
-## run/api: run the cmd/api application
+## run/api: run the cmd/api application with authentication disabled
 .PHONY: run/api
 run/api:
-	@go run ./cmd/api -db-dsn=${RELOHELPER_DB_DSN}
+	@go run ./cmd/api -db-dsn=${RELOHELPER_DB_DSN} -auth-enabled=false
+
+## run/api/auth: run the cmd/api application with authentication enabled
+.PHONY: run/api/auth
+run/api/auth:
+	@go run ./cmd/api -db-dsn=${RELOHELPER_DB_DSN} -auth-enabled=true
 
 ## db/psql: connect to the database using psql
 .PHONY: db/psql
