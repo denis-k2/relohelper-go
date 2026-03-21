@@ -64,7 +64,7 @@ paths:
           description: |
             Comma-separated include values.
             List mode supports only country.
-            Batch mode supports country, numbeo_cost, numbeo_indices, avg_climate.
+            Batch mode supports numbeo_cost, numbeo_indices, avg_climate.
             When detailed include blocks are requested, the batch limit is 20 unique ids.
       responses:
         "200":
@@ -311,8 +311,8 @@ paths:
           in: query
           schema:
             type: string
-          example: country,numbeo_cost,avg_climate
-          description: Comma-separated include values (country, numbeo_cost, numbeo_indices, avg_climate).
+          example: numbeo_cost,numbeo_indices,avg_climate
+          description: Comma-separated include values (numbeo_cost, numbeo_indices, avg_climate).
       responses:
         "200":
           description: City detail.
