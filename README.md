@@ -79,21 +79,26 @@ The full stack starts:
 - `prometheus`
 - `grafana`
 
+In the full stack setup, Prometheus scrapes a dedicated internal metrics listener on `api:4001`.
+This means `/metrics` is not exposed on the public API port.
+
 ### Available URLs
 
 - API: `http://127.0.0.1:4000`
+- Swagger UI: `http://127.0.0.1:4000/swagger`
 - Healthcheck: `http://127.0.0.1:4000/healthcheck`
 - Readiness: `http://127.0.0.1:4000/readyz`
-- Metrics: `http://127.0.0.1:4000/metrics`
 - Prometheus: `http://127.0.0.1:9090`
 - Grafana: `http://127.0.0.1:3000`
+
+`/metrics` is available only inside the Docker network for Prometheus and is not published externally in the full stack compose.
 
 ## Recommendation by Use Case
 
 - Local development:
-  - PostgreSQL отдельно
-  - API через `go run`
-  - monitoring при необходимости через `monitoring/docker-compose.yml`
+  - PostgreSQL separately
+  - API via `go run`
+  - monitoring via `monitoring/docker-compose.yml` when needed
 - Integration run:
   - root `docker-compose.yml`
 - VPS / deploy-like run:

@@ -99,6 +99,23 @@ func TestMetrics(t *testing.T) {
 	assert.Equal(t, strings.Contains(metrics, `route="/readyz"`), true)
 }
 
+func TestMetricsHiddenOnMainRouterWhenDedicatedMetricsPortConfigured(t *testing.T) {
+	appWithDedicatedMetrics := &application{
+		config: testApp.config,
+		logger: testApp.logger,
+		db:     testApp.db,
+		models: testApp.models,
+		mailer: testApp.mailer,
+	}
+	appWithDedicatedMetrics.config.metrics.port = 4001
+
+	ts := newTestServer(appWithDedicatedMetrics.routes())
+	defer ts.Close()
+
+	statusCode, _, _ := ts.get(t, "/metrics")
+	assert.Equal(t, statusCode, http.StatusNotFound)
+}
+
 func TestRateLimiterRejectedMetric(t *testing.T) {
 	cfg := testApp.config
 	cfg.limiter.enabled = true

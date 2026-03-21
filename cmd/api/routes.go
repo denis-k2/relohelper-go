@@ -25,7 +25,9 @@ func (app *application) routes() http.Handler {
 
 	router.Get("/healthcheck", app.healthcheckHandler)
 	router.Get("/readyz", app.readinessHandler)
-	router.Method(http.MethodGet, "/metrics", promhttp.Handler())
+	if app.config.metrics.port == 0 {
+		router.Method(http.MethodGet, "/metrics", promhttp.Handler())
+	}
 
 	router.Get("/cities", app.listCitiesHandler)
 	router.Get("/countries", app.listCountriesHandler)
@@ -47,5 +49,11 @@ func (app *application) routes() http.Handler {
 		router.Get("/swagger/openapi.yaml", app.openAPISpecHandler)
 	}
 
+	return router
+}
+
+func (app *application) metricsRoutes() http.Handler {
+	router := chi.NewRouter()
+	router.Method(http.MethodGet, "/metrics", promhttp.Handler())
 	return router
 }

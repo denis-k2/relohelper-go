@@ -22,7 +22,19 @@ func (app *application) serve() error {
 		ErrorLog:     slog.NewLogLogger(app.logger.Handler(), slog.LevelError),
 	}
 
-	shutdownError := make(chan error)
+	var metricsSrv *http.Server
+	if app.config.metrics.port > 0 {
+		metricsSrv = &http.Server{
+			Addr:         fmt.Sprintf(":%d", app.config.metrics.port),
+			Handler:      app.metricsRoutes(),
+			IdleTimeout:  time.Minute,
+			ReadTimeout:  5 * time.Second,
+			WriteTimeout: 10 * time.Second,
+			ErrorLog:     slog.NewLogLogger(app.logger.Handler(), slog.LevelError),
+		}
+	}
+
+	shutdownError := make(chan error, 2)
 
 	go func() {
 		quit := make(chan os.Signal, 1)
@@ -37,6 +49,14 @@ func (app *application) serve() error {
 		err := srv.Shutdown(ctx)
 		if err != nil {
 			shutdownError <- err
+			return
+		}
+
+		if metricsSrv != nil {
+			if err := metricsSrv.Shutdown(ctx); err != nil {
+				shutdownError <- err
+				return
+			}
 		}
 
 		app.logger.Info("completing background tasks", "addr", srv.Addr)
@@ -46,6 +66,16 @@ func (app *application) serve() error {
 	}()
 
 	app.logger.Info("starting server", "addr", srv.Addr, "env", app.config.env)
+
+	if metricsSrv != nil {
+		go func() {
+			app.logger.Info("starting metrics server", "addr", metricsSrv.Addr)
+			err := metricsSrv.ListenAndServe()
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
+				shutdownError <- err
+			}
+		}()
+	}
 
 	err := srv.ListenAndServe()
 	if !errors.Is(err, http.ErrServerClosed) {
@@ -58,6 +88,9 @@ func (app *application) serve() error {
 	}
 
 	app.logger.Info("stopped server", "addr", srv.Addr)
+	if metricsSrv != nil {
+		app.logger.Info("stopped metrics server", "addr", metricsSrv.Addr)
+	}
 
 	return nil
 }

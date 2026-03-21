@@ -51,8 +51,11 @@ services:
       RELOHELPER_SMTP_USERNAME: ${RELOHELPER_SMTP_USERNAME:-}
       RELOHELPER_SMTP_PASSWORD: ${RELOHELPER_SMTP_PASSWORD:-}
       RELOHELPER_SMTP_SENDER: ${RELOHELPER_SMTP_SENDER:-Relohelper <no-reply@relohelper.local>}
+    command: ["/app/api", "-metrics-port=4001"]
     ports:
       - "${API_PORT:-4000}:4000"
+    expose:
+      - "4001"
 
   prometheus:
     image: prom/prometheus:v3.10.0
