@@ -28,7 +28,10 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          }
         },
         "overrides": []
       },
@@ -40,7 +43,7 @@
       },
       "id": 1,
       "options": {
-        "colorMode": "value",
+        "colorMode": "none",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
@@ -98,7 +101,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(increase(relohelper_http_requests_by_status_class_total{status_class=\"4xx\"}[5m]))",
+          "expr": "sum(increase(relohelper_http_requests_by_status_class_total{status_class=\"4xx\"}[5m])) or vector(0)",
           "refId": "A"
         }
       ],
@@ -140,7 +143,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(increase(relohelper_http_requests_by_status_class_total{status_class=\"5xx\"}[5m]))",
+          "expr": "sum(increase(relohelper_http_requests_by_status_class_total{status_class=\"5xx\"}[5m])) or vector(0)",
           "refId": "A"
         }
       ],
@@ -161,7 +164,7 @@
       "gridPos": {
         "h": 5,
         "w": 4,
-        "x": 12,
+        "x": 16,
         "y": 0
       },
       "id": 4,
@@ -182,7 +185,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(increase(relohelper_rate_limiter_rejected_total[5m]))",
+          "expr": "sum(increase(relohelper_rate_limiter_rejected_total[5m])) or vector(0)",
           "refId": "A"
         }
       ],
@@ -203,7 +206,7 @@
       "gridPos": {
         "h": 5,
         "w": 4,
-        "x": 16,
+        "x": 12,
         "y": 0
       },
       "id": 5,
@@ -266,7 +269,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(rate(relohelper_rate_limiter_rejected_total[5m])) / clamp_min(sum(rate(relohelper_rate_limiter_allowed_total[5m])) + sum(rate(relohelper_rate_limiter_rejected_total[5m])), 1e-9)",
+          "expr": "(sum(rate(relohelper_rate_limiter_rejected_total[5m])) / clamp_min(sum(rate(relohelper_rate_limiter_allowed_total[5m])) + sum(rate(relohelper_rate_limiter_rejected_total[5m])), 1e-9)) or vector(0)",
           "refId": "A"
         }
       ],
