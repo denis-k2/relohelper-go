@@ -228,7 +228,7 @@
           "refId": "A"
         }
       ],
-      "title": "Global p95 Latency",
+      "title": "Global p95 Latency Last 5m",
       "type": "stat"
     },
     {
@@ -270,7 +270,7 @@
           "refId": "A"
         }
       ],
-      "title": "Rate Limiter Reject Ratio",
+      "title": "Rate Limiter Reject Ratio Last 5m",
       "type": "stat"
     },
     {
@@ -355,12 +355,14 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum by (route) (increase(relohelper_http_requests_total[$__range]))",
+          "expr": "topk(10, sum by (route) (increase(relohelper_http_requests_total[$__range])))",
           "legendFormat": "{{route}}",
-          "refId": "A"
+          "refId": "A",
+          "range": false,
+          "instant": true
         }
       ],
-      "title": "Total Requests by Route",
+      "title": "Top 10 Routes by Total Requests",
       "type": "bargauge"
     },
     {
@@ -404,7 +406,7 @@
           "refId": "A"
         }
       ],
-      "title": "Requests by Status Class",
+      "title": "Request Rate by Status Class",
       "type": "timeseries"
     },
     {
@@ -454,7 +456,7 @@
           "refId": "B"
         }
       ],
-      "title": "Rate Limiter Allowed vs Rejected",
+      "title": "Rate Limiter Allow/Reject Rate",
       "type": "timeseries"
     },
     {
@@ -537,18 +539,12 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "histogram_quantile(0.50, sum by (le, route) (rate(relohelper_http_request_duration_seconds_bucket[5m])))",
-          "legendFormat": "{{route}} p50",
-          "refId": "A"
-        },
-        {
-          "editorMode": "code",
-          "expr": "histogram_quantile(0.95, sum by (le, route) (rate(relohelper_http_request_duration_seconds_bucket[5m])))",
+          "expr": "topk(10, histogram_quantile(0.95, sum by (le, route) (rate(relohelper_http_request_duration_seconds_bucket[5m]))))",
           "legendFormat": "{{route}} p95",
-          "refId": "B"
+          "refId": "A"
         }
       ],
-      "title": "Latency p50 and p95 by Route",
+      "title": "Top 10 Routes by p95 Latency Over Time",
       "type": "timeseries"
     },
     {
@@ -589,12 +585,14 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "topk(5, histogram_quantile(0.95, sum by (le, route) (rate(relohelper_http_request_duration_seconds_bucket[5m]))))",
+          "expr": "topk(10, histogram_quantile(0.95, sum by (le, route) (rate(relohelper_http_request_duration_seconds_bucket[5m]))))",
           "legendFormat": "{{route}}",
-          "refId": "A"
+          "refId": "A",
+          "range": false,
+          "instant": true
         }
       ],
-      "title": "Top Slow Routes (p95)",
+      "title": "Top 10 Slow Routes by p95 Latency",
       "type": "bargauge"
     }
   ],
