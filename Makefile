@@ -32,6 +32,11 @@ run/api:
 run/api/auth:
 	@go run ./cmd/api -db-dsn=${RELOHELPER_DB_DSN} -auth-enabled=true
 
+## run/api/load: run the cmd/api application for load testing
+.PHONY: run/api/load
+run/api/load:
+	@go run ./cmd/api -db-dsn=${RELOHELPER_DB_DSN} -auth-enabled=false -limiter-enabled=false
+
 ## db/psql: connect to the database using psql
 .PHONY: db/psql
 db/psql:
