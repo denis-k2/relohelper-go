@@ -56,7 +56,7 @@ Fill in at least:
 From the repository root:
 
 ```bash
-docker compose -f deploy/docker-compose.yml up -d --build
+docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
 ```
 
 ## Public URLs
@@ -120,6 +120,18 @@ ssh -L 3000:localhost:3000 <user>@<your_vps_ip>
 Then open locally in your browser:
 
 - `http://127.0.0.1:3000`
+
+## Notes
+
+- Because the deploy compose file lives in `deploy/`, start it with `--env-file .env` from the repository root so Compose picks up the root `.env`.
+- This deploy stack uses the PostgreSQL 18 container layout and mounts the data volume at `/var/lib/postgresql`.
+- If you need to change API runtime flags for VPS deploy, edit the `api.command` section in `deploy/docker-compose.yml`, then apply the change with:
+
+```bash
+docker compose --env-file .env -f deploy/docker-compose.yml up -d
+```
+
+Compose will usually recreate only the `api` container when only its command changes. PostgreSQL, Prometheus, Grafana, and Caddy are not rebuilt or restarted unless their own configuration changes.
 
 ## Local development remains unchanged
 

@@ -64,6 +64,12 @@ See [deploy/DEPLOY.md](./deploy/DEPLOY.md) for:
 - public and internal service exposure
 - secure Grafana access via SSH tunnel
 
+Run the VPS stack from the repository root with:
+
+```bash
+docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
+```
+
 ## Recommendation by Use Case
 
 - Local development:

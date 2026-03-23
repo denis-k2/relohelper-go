@@ -21,7 +21,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 10s
@@ -63,12 +63,7 @@ services:
       RELOHELPER_SMTP_USERNAME: ${RELOHELPER_SMTP_USERNAME:-}
       RELOHELPER_SMTP_PASSWORD: ${RELOHELPER_SMTP_PASSWORD:-}
       RELOHELPER_SMTP_SENDER: ${RELOHELPER_SMTP_SENDER:-Relohelper <no-reply@relohelper.local>}
-    command:
-      [
-        "/app/api",
-        "-env=production",
-        "-metrics-port=4001",
-      ]
+    command: ["/app/api", "-env=production", "-metrics-port=4001"]
     expose:
       - "4000"
       - "4001"
