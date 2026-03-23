@@ -45,9 +45,9 @@ func (app *application) routes() http.Handler {
 
 	if app.config.env != "production" {
 		router.Method(http.MethodGet, "/debug/vars", expvar.Handler())
-		router.Get("/swagger", app.swaggerUIHandler)
-		router.Get("/swagger/openapi.yaml", app.openAPISpecHandler)
 	}
+	router.Get("/swagger", app.swaggerUIHandler)
+	router.Get("/swagger/openapi.yaml", app.openAPISpecHandler)
 
 	return router
 }

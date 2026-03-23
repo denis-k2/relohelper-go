@@ -1,4 +1,18 @@
 services:
+  caddy:
+    image: caddy:2.10
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
   postgres:
     image: postgres:18
     restart: unless-stopped
@@ -6,8 +20,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -19,11 +31,12 @@ services:
 
   migrate:
     image: migrate/migrate:v4.19.1
+    restart: "no"
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
-      - ./migrations:/migrations:ro
+      - ../migrations:/migrations:ro
     command:
       [
         "-path",
@@ -32,11 +45,10 @@ services:
         "postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable",
         "up",
       ]
-    restart: "no"
 
   api:
     build:
-      context: .
+      context: ..
       dockerfile: Dockerfile
     restart: unless-stopped
     depends_on:
@@ -51,26 +63,28 @@ services:
       RELOHELPER_SMTP_USERNAME: ${RELOHELPER_SMTP_USERNAME:-}
       RELOHELPER_SMTP_PASSWORD: ${RELOHELPER_SMTP_PASSWORD:-}
       RELOHELPER_SMTP_SENDER: ${RELOHELPER_SMTP_SENDER:-Relohelper <no-reply@relohelper.local>}
-    command: ["/app/api", "-metrics-port=4001"]
-    ports:
-      - "${API_PORT:-4000}:4000"
+    command:
+      [
+        "/app/api",
+        "-env=production",
+        "-metrics-port=4001",
+      ]
     expose:
+      - "4000"
       - "4001"
 
   prometheus:
     image: prom/prometheus:v3.10.0
     restart: unless-stopped
-    command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --storage.tsdb.path=/prometheus
-    ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
-    volumes:
-      - ./monitoring/prometheus/prometheus.compose.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
     depends_on:
       api:
         condition: service_started
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ../monitoring/prometheus/prometheus.compose.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
 
   grafana:
     image: grafana/grafana:12.4
@@ -79,18 +93,20 @@ services:
       prometheus:
         condition: service_started
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
-      - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
-      - ./monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ../monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ../monitoring/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
 
 volumes:
+  caddy_data:
+  caddy_config:
   postgres_data:
   prometheus_data:
   grafana_data:

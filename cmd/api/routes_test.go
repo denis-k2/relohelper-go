@@ -116,6 +116,40 @@ func TestMetricsHiddenOnMainRouterWhenDedicatedMetricsPortConfigured(t *testing.
 	assert.Equal(t, statusCode, http.StatusNotFound)
 }
 
+func TestSwaggerAvailableOnMainRouter(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	statusCode, header, _ := ts.get(t, "/swagger")
+	assert.Equal(t, statusCode, http.StatusOK)
+	assert.Equal(t, header.Get("content-type"), "text/html; charset=utf-8")
+}
+
+func TestSwaggerAvailableInProductionWhileDebugVarsStayDisabled(t *testing.T) {
+	appWithProductionEnv := &application{
+		config: testApp.config,
+		logger: testApp.logger,
+		db:     testApp.db,
+		models: testApp.models,
+		mailer: testApp.mailer,
+	}
+	appWithProductionEnv.config.env = "production"
+
+	ts := newTestServer(appWithProductionEnv.routes())
+	defer ts.Close()
+
+	statusCode, header, _ := ts.get(t, "/swagger")
+	assert.Equal(t, statusCode, http.StatusOK)
+	assert.Equal(t, header.Get("content-type"), "text/html; charset=utf-8")
+
+	statusCode, specHeader, _ := ts.get(t, "/swagger/openapi.yaml")
+	assert.Equal(t, statusCode, http.StatusOK)
+	assert.Equal(t, specHeader.Get("content-type"), "application/yaml; charset=utf-8")
+
+	statusCode, _, _ = ts.get(t, "/debug/vars")
+	assert.Equal(t, statusCode, http.StatusNotFound)
+}
+
 func TestRateLimiterRejectedMetric(t *testing.T) {
 	cfg := testApp.config
 	cfg.limiter.enabled = true
