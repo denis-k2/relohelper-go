@@ -43,55 +43,26 @@ docker compose -f monitoring/docker-compose.yml up -d
 
 This mode is still the recommended setup for everyday local development.
 
-## Full Stack with Docker Compose
+## VPS Deploy with Docker Compose and Caddy
 
-For integration testing and VPS-like deployment, the project now includes a full stack compose file in the repository root.
+For production-like deployment on an Ubuntu VPS, use the dedicated deploy stack.
 
 ### Files
 
-- Full stack compose: `docker-compose.yml`
+- VPS compose: `deploy/docker-compose.yml`
+- Caddy config: `deploy/Caddyfile`
+- Deploy guide: `deploy/DEPLOY.md`
 - API image build: `Dockerfile`
 - Env template: `.env.example`
-- Monitoring-only compose: `monitoring/docker-compose.yml`
-- Full stack Prometheus config: `monitoring/prometheus/prometheus.compose.yml`
 
-### How to run
+See [deploy/DEPLOY.md](./deploy/DEPLOY.md) for:
 
-1. Create env file from the template:
-
-```bash
-cp .env.example .env
-```
-
-2. Adjust values in `.env`.
-
-3. Start the full stack:
-
-```bash
-docker compose up -d --build
-```
-
-The full stack starts:
-
-- `postgres`
-- `migrate`
-- `api`
-- `prometheus`
-- `grafana`
-
-In the full stack setup, Prometheus scrapes a dedicated internal metrics listener on `api:4001`.
-This means `/metrics` is not exposed on the public API port.
-
-### Available URLs
-
-- API: `http://127.0.0.1:4000`
-- Swagger UI: `http://127.0.0.1:4000/swagger`
-- Healthcheck: `http://127.0.0.1:4000/healthcheck`
-- Readiness: `http://127.0.0.1:4000/readyz`
-- Prometheus: `http://127.0.0.1:9090`
-- Grafana: `http://127.0.0.1:3000`
-
-`/metrics` is available only inside the Docker network for Prometheus and is not published externally in the full stack compose.
+- DNS setup
+- firewall requirements
+- environment variables
+- startup commands
+- public and internal service exposure
+- secure Grafana access via SSH tunnel
 
 ## Recommendation by Use Case
 
@@ -99,9 +70,8 @@ This means `/metrics` is not exposed on the public API port.
   - PostgreSQL separately
   - API via `go run`
   - monitoring via `monitoring/docker-compose.yml` when needed
-- Integration run:
-  - root `docker-compose.yml`
-- VPS / deploy-like run:
-  - root `docker-compose.yml` as the simplest production-like baseline
+- VPS / production-like deploy:
+  - `deploy/docker-compose.yml`
+  - `deploy/Caddyfile`
 
 More detailed project description will be added as development progresses.

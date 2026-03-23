@@ -1,0 +1,8 @@
+relohelper.pro {
+	encode zstd gzip
+
+	@metrics path /metrics
+	respond @metrics 404
+
+	reverse_proxy api:4000
+}
