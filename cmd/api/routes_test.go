@@ -144,6 +144,50 @@ func TestMetricsCollapseUnmatchedRoutes(t *testing.T) {
 	assert.Equal(t, strings.Contains(metrics, `route="/totally-random-path"`), false)
 }
 
+func TestMetricsUseEndpointModeLabels(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	_, _, _ = ts.get(t, "/cities")
+	_, _, _ = ts.get(t, "/cities?ids=5128581,6167865")
+	_, _, _ = ts.get(t, "/cities?ids=5128581,6167865&include=numbeo_indices")
+	_, _, _ = ts.get(t, "/cities/5128581")
+	_, _, _ = ts.get(t, "/cities/5128581?include=numbeo_indices")
+
+	_, _, _ = ts.get(t, "/countries")
+	_, _, _ = ts.get(t, "/countries?country_codes=USA,CAN")
+	_, _, _ = ts.get(t, "/countries?country_codes=USA,CAN&include=numbeo_indices")
+	_, _, _ = ts.get(t, "/countries/USA")
+	_, _, _ = ts.get(t, "/countries/USA?include=numbeo_indices")
+
+	rs, err := ts.Client().Get(ts.URL + "/metrics")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := rs.Body.Close(); err != nil {
+			t.Errorf("failed to close response body: %v", err)
+		}
+	}()
+
+	body, err := io.ReadAll(rs.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	metrics := string(body)
+	assert.Equal(t, strings.Contains(metrics, `route="/cities:list"`), true)
+	assert.Equal(t, strings.Contains(metrics, `route="/cities:batch"`), true)
+	assert.Equal(t, strings.Contains(metrics, `route="/cities:batch_detailed"`), true)
+	assert.Equal(t, strings.Contains(metrics, `route="/cities/{id}"`), true)
+	assert.Equal(t, strings.Contains(metrics, `route="/cities/{id}:detailed"`), true)
+	assert.Equal(t, strings.Contains(metrics, `route="/countries:list"`), true)
+	assert.Equal(t, strings.Contains(metrics, `route="/countries:batch"`), true)
+	assert.Equal(t, strings.Contains(metrics, `route="/countries:batch_detailed"`), true)
+	assert.Equal(t, strings.Contains(metrics, `route="/countries/{alpha3}"`), true)
+	assert.Equal(t, strings.Contains(metrics, `route="/countries/{alpha3}:detailed"`), true)
+}
+
 func TestSwaggerAvailableOnMainRouter(t *testing.T) {
 	ts := newTestServer(testApp.routes())
 	defer ts.Close()

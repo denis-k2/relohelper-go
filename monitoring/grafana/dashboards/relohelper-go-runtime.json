@@ -66,6 +66,10 @@
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
           "unit": "short"
         },
         "overrides": []
@@ -106,6 +110,10 @@
       },
       "fieldConfig": {
         "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "green"
+          },
           "unit": "bytes"
         },
         "overrides": []
