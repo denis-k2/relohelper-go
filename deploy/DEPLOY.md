@@ -47,6 +47,11 @@ Fill in at least:
 - `POSTGRES_DB`
 - `POSTGRES_USER`
 - `POSTGRES_PASSWORD`
+- `RELOHELPER_DB_MAX_OPEN_CONNS`
+- `RELOHELPER_LIMITER_RPS`
+- `RELOHELPER_LIMITER_BURST`
+- `RELOHELPER_AUTH_ENABLED`
+- `RELOHELPER_LIMITER_ENABLED`
 - `GRAFANA_ADMIN_USER`
 - `GRAFANA_ADMIN_PASSWORD`
 - SMTP settings if email delivery is required
@@ -125,7 +130,13 @@ Then open locally in your browser:
 
 - Because the deploy compose file lives in `deploy/`, start it with `--env-file .env` from the repository root so Compose picks up the root `.env`.
 - This deploy stack uses the PostgreSQL 18 container layout and mounts the data volume at `/var/lib/postgresql`.
-- If you need to change API runtime flags for VPS deploy, edit the `api.command` section in `deploy/docker-compose.yml`, then apply the change with:
+- API runtime toggles for VPS deploy are controlled from `.env` and injected into the container command by Docker Compose:
+  - `RELOHELPER_DB_MAX_OPEN_CONNS`
+  - `RELOHELPER_LIMITER_RPS`
+  - `RELOHELPER_LIMITER_BURST`
+  - `RELOHELPER_AUTH_ENABLED=true|false`
+  - `RELOHELPER_LIMITER_ENABLED=true|false`
+- After changing these values, apply them with:
 
 ```bash
 docker compose --env-file .env -f deploy/docker-compose.yml up -d
