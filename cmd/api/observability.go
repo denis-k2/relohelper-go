@@ -8,7 +8,9 @@ import (
 	"expvar"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -230,10 +232,61 @@ func requestRoute(r *http.Request) string {
 
 	routePattern := routeContext.RoutePattern()
 	if routePattern != "" {
-		return routePattern
+		return requestRouteMode(routePattern, r)
 	}
 
 	return "unmatched"
+}
+
+func requestRouteMode(routePattern string, r *http.Request) string {
+	qs := r.URL.Query()
+
+	switch routePattern {
+	case "/cities":
+		if qs.Has("ids") {
+			if hasDetailedCityIncludeQuery(qs) {
+				return "/cities:batch_detailed"
+			}
+			return "/cities:batch"
+		}
+		return "/cities:list"
+	case "/cities/{id}":
+		if qs.Has("include") {
+			return "/cities/{id}:detailed"
+		}
+		return routePattern
+	case "/countries":
+		if qs.Has("country_codes") {
+			if qs.Has("include") {
+				return "/countries:batch_detailed"
+			}
+			return "/countries:batch"
+		}
+		return "/countries:list"
+	case "/countries/{alpha3}":
+		if qs.Has("include") {
+			return "/countries/{alpha3}:detailed"
+		}
+		return routePattern
+	default:
+		return routePattern
+	}
+}
+
+func hasDetailedCityIncludeQuery(qs url.Values) bool {
+	rawInclude := qs.Get("include")
+	if rawInclude == "" {
+		return false
+	}
+
+	for _, part := range strings.Split(rawInclude, ",") {
+		switch strings.TrimSpace(part) {
+		case "numbeo_cost", "numbeo_indices", "avg_climate":
+			return true
+		}
+	}
+
+	return false
 }
 
 func newRequestID() string {
