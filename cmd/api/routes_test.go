@@ -116,6 +116,34 @@ func TestMetricsHiddenOnMainRouterWhenDedicatedMetricsPortConfigured(t *testing.
 	assert.Equal(t, statusCode, http.StatusNotFound)
 }
 
+func TestMetricsCollapseUnmatchedRoutes(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	_, _, _ = ts.get(t, "/wp-admin")
+	_, _, _ = ts.get(t, "/totally-random-path")
+
+	rs, err := ts.Client().Get(ts.URL + "/metrics")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := rs.Body.Close(); err != nil {
+			t.Errorf("failed to close response body: %v", err)
+		}
+	}()
+
+	body, err := io.ReadAll(rs.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	metrics := string(body)
+	assert.Equal(t, strings.Contains(metrics, `route="unmatched"`), true)
+	assert.Equal(t, strings.Contains(metrics, `route="/wp-admin"`), false)
+	assert.Equal(t, strings.Contains(metrics, `route="/totally-random-path"`), false)
+}
+
 func TestSwaggerAvailableOnMainRouter(t *testing.T) {
 	ts := newTestServer(testApp.routes())
 	defer ts.Close()
