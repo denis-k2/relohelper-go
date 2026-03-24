@@ -225,7 +225,7 @@ func (app *application) collectPrometheusMetrics(next http.Handler) http.Handler
 func requestRoute(r *http.Request) string {
 	routeContext := chi.RouteContext(r.Context())
 	if routeContext == nil {
-		return r.URL.Path
+		return "unmatched"
 	}
 
 	routePattern := routeContext.RoutePattern()
@@ -233,7 +233,7 @@ func requestRoute(r *http.Request) string {
 		return routePattern
 	}
 
-	return r.URL.Path
+	return "unmatched"
 }
 
 func newRequestID() string {
