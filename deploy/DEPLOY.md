@@ -130,6 +130,12 @@ Then open locally in your browser:
 
 - Because the deploy compose file lives in `deploy/`, start it with `--env-file .env` from the repository root so Compose picks up the root `.env`.
 - This deploy stack uses the PostgreSQL 18 container layout and mounts the data volume at `/var/lib/postgresql`.
+- Docker container logs are rotated with:
+  - `max-size=10m`
+  - `max-file=5`
+- Prometheus retention is limited to:
+  - `7d`
+  - `1GB`
 - API runtime toggles for VPS deploy are controlled from `.env` and injected into the container command by Docker Compose:
   - `RELOHELPER_DB_MAX_OPEN_CONNS`
   - `RELOHELPER_LIMITER_RPS`
