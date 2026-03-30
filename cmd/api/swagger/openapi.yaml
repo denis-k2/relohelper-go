@@ -855,25 +855,77 @@ components:
         last_update: { type: string }
     AvgClimate:
       type: object
+      description: |
+        Climate metrics for a city.
+        Each property is a monthly series with 12 values ordered from January to December.
       properties:
-        high_temp: { $ref: "#/components/schemas/MonthlySeries" }
-        low_temp: { $ref: "#/components/schemas/MonthlySeries" }
-        pressure: { $ref: "#/components/schemas/MonthlySeries" }
-        wind_speed: { $ref: "#/components/schemas/MonthlySeries" }
-        humidity: { $ref: "#/components/schemas/MonthlySeries" }
-        rainfall: { $ref: "#/components/schemas/MonthlySeries" }
-        rainfall_days: { $ref: "#/components/schemas/MonthlySeries" }
-        snowfall: { $ref: "#/components/schemas/MonthlySeries" }
-        snowfall_days: { $ref: "#/components/schemas/MonthlySeries" }
-        sea_temp: { $ref: "#/components/schemas/MonthlySeries" }
-        daylight: { $ref: "#/components/schemas/MonthlySeries" }
-        sunshine: { $ref: "#/components/schemas/MonthlySeries" }
-        sunshine_days: { $ref: "#/components/schemas/MonthlySeries" }
-        uv_index: { $ref: "#/components/schemas/MonthlySeries" }
-        cloud_cover: { $ref: "#/components/schemas/MonthlySeries" }
-        visibility: { $ref: "#/components/schemas/MonthlySeries" }
+        high_temp:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average high temperature, °C.
+        low_temp:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average low temperature, °C.
+        pressure:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average pressure, mbar.
+        wind_speed:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average wind speed, km/h.
+        humidity:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average humidity, %.
+        rainfall:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average rainfall, mm.
+        rainfall_days:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average rainfall days, days.
+        snowfall:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average snowfall, mm.
+        snowfall_days:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average snowfall days, days.
+        sea_temp:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average sea temperature, °C.
+        daylight:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average daylight, hours.
+        sunshine:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average sunshine, hours.
+        sunshine_days:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average sunshine days, days.
+        uv_index:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average UV index.
+        cloud_cover:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average cloud cover, %.
+        visibility:
+          allOf:
+            - $ref: "#/components/schemas/MonthlySeries"
+          description: Average visibility, km.
     MonthlySeries:
       type: array
+      description: Monthly series with 12 values ordered from January to December.
       minItems: 12
       maxItems: 12
       items:
