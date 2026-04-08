@@ -197,6 +197,31 @@ func TestSwaggerAvailableOnMainRouter(t *testing.T) {
 	assert.Equal(t, header.Get("content-type"), "text/html; charset=utf-8")
 }
 
+func TestDashboardAvailableOnRoot(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	statusCode, header, body := ts.get(t, "/")
+	assert.Equal(t, statusCode, http.StatusOK)
+	assert.Equal(t, strings.Contains(header.Get("content-type"), "text/html"), true)
+	assert.Equal(t, strings.Contains(string(body), "Relohelper Dashboard"), true)
+}
+
+func TestDashboardStaticAssetsAvailable(t *testing.T) {
+	ts := newTestServer(testApp.routes())
+	defer ts.Close()
+
+	statusCode, header, body := ts.get(t, "/app.js")
+	assert.Equal(t, statusCode, http.StatusOK)
+	assert.Equal(t, strings.Contains(header.Get("content-type"), "javascript"), true)
+	assert.Equal(t, strings.Contains(string(body), "const state ="), true)
+
+	statusCode, header, body = ts.get(t, "/styles.css")
+	assert.Equal(t, statusCode, http.StatusOK)
+	assert.Equal(t, strings.Contains(header.Get("content-type"), "text/css"), true)
+	assert.Equal(t, strings.Contains(string(body), ":root"), true)
+}
+
 func TestSwaggerAvailableInProductionWhileDebugVarsStayDisabled(t *testing.T) {
 	appWithProductionEnv := &application{
 		config: testApp.config,

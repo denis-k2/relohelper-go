@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Relohelper Dashboard</title>
+        <link rel="stylesheet" href="./styles.css" />
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script defer src="./app.js"></script>
+    </head>
+    <body>
+        <div class="app-shell">
+            <header class="topbar">
+                <div>
+                    <p class="eyebrow">Relohelper</p>
+                    <h1>City Comparison Dashboard</h1>
+                    <p class="subtitle">
+                        Compare multiple cities by cost of living, indices, and
+                        climate.
+                    </p>
+                </div>
+
+                <div class="topbar-actions">
+                    <button id="compareBtn" class="btn btn-primary">
+                        Compare
+                    </button>
+                    <button id="resetBtn" class="btn btn-secondary">
+                        Reset
+                    </button>
+                </div>
+            </header>
+
+            <main class="dashboard-grid">
+                <section class="card filters-card">
+                    <div class="card-header">
+                        <h2>Filters</h2>
+                        <p>Select countries first, then cities.</p>
+                    </div>
+
+                    <div class="filters-grid">
+                        <div class="filter-block">
+                            <label for="countrySearch">Search countries</label>
+                            <input
+                                id="countrySearch"
+                                class="text-input"
+                                type="text"
+                                placeholder="Type country name..."
+                            />
+                            <div id="countryList" class="selection-list"></div>
+                        </div>
+
+                        <div class="filter-block">
+                            <label for="citySearch">Search cities</label>
+                            <input
+                                id="citySearch"
+                                class="text-input"
+                                type="text"
+                                placeholder="Type city name..."
+                            />
+                            <div id="cityList" class="selection-list"></div>
+                        </div>
+                    </div>
+
+                    <div class="selected-summary">
+                        <div>
+                            <span class="summary-label"
+                                >Selected countries</span
+                            >
+                            <div id="selectedCountries" class="chip-row"></div>
+                        </div>
+                        <div>
+                            <span class="summary-label">Selected cities</span>
+                            <div id="selectedCities" class="chip-row"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card metrics-card">
+                    <div class="card-header">
+                        <h2>Overview</h2>
+                        <p>Quick summary of the current comparison set.</p>
+                    </div>
+
+                    <div class="metric-grid">
+                        <div class="metric-box">
+                            <span class="metric-label">Cities selected</span>
+                            <span id="metricCities" class="metric-value"
+                                >0</span
+                            >
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-label">Countries selected</span>
+                            <span id="metricCountries" class="metric-value"
+                                >0</span
+                            >
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-label">Lowest rent city</span>
+                            <span
+                                id="metricLowestRent"
+                                class="metric-value metric-small"
+                                >—</span
+                            >
+                        </div>
+                        <div class="metric-box">
+                            <span class="metric-label">Highest QoL city</span>
+                            <span
+                                id="metricBestQol"
+                                class="metric-value metric-small"
+                                >—</span
+                            >
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card table-card">
+                    <div class="card-header">
+                        <h2>Comparison table</h2>
+                        <p>
+                            Built from <code>/cities?ids=...&include=...</code>.
+                        </p>
+                    </div>
+
+                    <div id="tableEmptyState" class="empty-state">
+                        Select cities and click <strong>Compare</strong> to load
+                        data.
+                    </div>
+
+                    <div
+                        id="comparisonTableWrapper"
+                        class="table-wrapper hidden"
+                    >
+                        <table id="comparisonTable">
+                            <thead>
+                                <tr>
+                                    <th>City</th>
+                                    <th>Country</th>
+                                    <th>Cost of Living</th>
+                                    <th>Rent</th>
+                                    <th>Groceries</th>
+                                    <th>Restaurant</th>
+                                    <th>QoL</th>
+                                    <th>Safety</th>
+                                    <th>Health Care</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="card chart-card">
+                    <div class="card-header">
+                        <h2>Climate chart</h2>
+                        <p>Average monthly high temperature comparison.</p>
+                    </div>
+
+                    <div id="chartEmptyState" class="empty-state">
+                        Climate chart will appear after comparison data is
+                        loaded.
+                    </div>
+
+                    <div class="chart-wrapper">
+                        <canvas id="climateChart"></canvas>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </body>
+</html>
