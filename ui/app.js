@@ -1,4 +1,5 @@
 const state = {
+  allCities: [],
   countries: [],
   cities: [],
   selectedCountryCodes: new Set(),
@@ -8,6 +9,9 @@ const state = {
 };
 
 const els = {
+  filtersCard: document.querySelector(".filters-card"),
+  filtersBody: document.getElementById("filtersBody"),
+  editFiltersBtn: document.getElementById("editFiltersBtn"),
   countrySearch: document.getElementById("countrySearch"),
   citySearch: document.getElementById("citySearch"),
   countryList: document.getElementById("countryList"),
@@ -29,7 +33,7 @@ const els = {
 
 document.addEventListener("DOMContentLoaded", () => {
   bindEvents();
-  loadCountries();
+  loadInitialData();
 });
 
 function bindEvents() {
@@ -37,81 +41,89 @@ function bindEvents() {
   els.citySearch.addEventListener("input", renderCities);
   els.compareBtn.addEventListener("click", loadComparison);
   els.resetBtn.addEventListener("click", resetDashboard);
+  els.editFiltersBtn.addEventListener("click", expandFilters);
 }
 
-async function loadCountries() {
+async function loadInitialData() {
   try {
-    const res = await fetch("/countries");
-    if (!res.ok) throw new Error(`Failed to load countries: ${res.status}`);
+    const res = await fetch("/cities");
+    if (!res.ok) throw new Error(`Failed to load cities: ${res.status}`);
 
     const data = await res.json();
-
-    // Expected flexible parsing
-    state.countries = Array.isArray(data.countries)
-      ? data.countries
+    state.allCities = Array.isArray(data.cities)
+      ? data.cities
       : Array.isArray(data.data)
         ? data.data
         : [];
+    state.countries = buildCountriesFromCities(state.allCities);
 
     renderCountries();
+    renderCities();
     renderSelectedCountries();
+    renderSelectedCities();
     updateMetrics();
   } catch (error) {
     console.error(error);
     els.countryList.innerHTML = `<div class="empty-state">Failed to load countries.</div>`;
+    els.cityList.innerHTML = `<div class="empty-state">Failed to load cities.</div>`;
   }
 }
 
-async function loadCitiesForSelectedCountries() {
+function buildCountriesFromCities(cities) {
+  const countryMap = new Map();
+
+  for (const city of cities) {
+    const code = city.country_code ?? city.code;
+    const name = city.country ?? city.country_name ?? code;
+    if (!code || !name || countryMap.has(code)) continue;
+
+    countryMap.set(code, {
+      country_code: code,
+      country: name,
+    });
+  }
+
+  return Array.from(countryMap.values()).sort((a, b) =>
+    a.country.localeCompare(b.country),
+  );
+}
+
+function filterCitiesForSelectedCountries() {
   const selectedCodes = Array.from(state.selectedCountryCodes);
-  state.cities = [];
-  state.selectedCityIds.clear();
 
   if (selectedCodes.length === 0) {
+    state.cities = [];
+    state.selectedCityIds.clear();
     renderCities();
     renderSelectedCities();
     updateMetrics();
     return;
   }
 
-  try {
-    const results = await Promise.all(
-      selectedCodes.map((code) =>
-        fetch(`/cities?country_code=${encodeURIComponent(code)}`).then(
-          (res) => {
-            if (res.status === 404) return { cities: [] };
-            if (!res.ok) throw new Error(`Failed to load cities for ${code}`);
-            return res.json();
-          },
-        ),
-      ),
-    );
-
-    const allCities = results.flatMap((data) => {
-      if (Array.isArray(data.cities)) return data.cities;
-      if (Array.isArray(data.data)) return data.data;
-      return [];
-    });
-
-    const uniqueMap = new Map();
-    for (const city of allCities) {
-      const id = city.geoname_id ?? city.city_id ?? city.id;
-      if (id != null) uniqueMap.set(String(id), city);
-    }
-
-    state.cities = Array.from(uniqueMap.values()).sort((a, b) => {
+  const selectedCodeSet = new Set(selectedCodes);
+  state.cities = state.allCities
+    .filter((city) => selectedCodeSet.has(city.country_code))
+    .sort((a, b) => {
       const aName = (a.city ?? a.name ?? "").toLowerCase();
       const bName = (b.city ?? b.name ?? "").toLowerCase();
       return aName.localeCompare(bName);
     });
 
-    renderCities();
-    renderSelectedCities();
-    updateMetrics();
-  } catch (error) {
-    console.error(error);
-    els.cityList.innerHTML = `<div class="empty-state">Failed to load cities.</div>`;
+  const availableCityIDs = new Set(
+    state.cities.map((city) =>
+      String(city.geoname_id ?? city.city_id ?? city.id ?? ""),
+    ),
+  );
+
+  for (const cityID of Array.from(state.selectedCityIds)) {
+    if (!availableCityIDs.has(cityID)) {
+      state.selectedCityIds.delete(cityID);
+    }
   }
+
+  renderCities();
+  renderSelectedCities();
+  updateMetrics();
 }
 
 function renderCountries() {
@@ -155,7 +167,7 @@ function renderCountries() {
   els.countryList
     .querySelectorAll("input[data-country-code]")
     .forEach((input) => {
-      input.addEventListener("change", async (e) => {
+      input.addEventListener("change", (e) => {
         const code = e.target.dataset.countryCode;
         if (!code) return;
 
@@ -166,8 +178,7 @@ function renderCountries() {
         }
 
         renderSelectedCountries();
-        updateMetrics();
-        await loadCitiesForSelectedCountries();
+        filterCitiesForSelectedCountries();
       });
     });
 }
@@ -182,7 +193,11 @@ function renderCities() {
   });
 
   if (filtered.length === 0) {
-    els.cityList.innerHTML = `<div class="empty-state">Select countries to load cities.</div>`;
+    if (state.selectedCountryCodes.size === 0) {
+      els.cityList.innerHTML = `<div class="empty-state">Select countries to load cities.</div>`;
+    } else {
+      els.cityList.innerHTML = `<div class="empty-state">No cities match the current selection.</div>`;
+    }
     return;
   }
 
@@ -286,6 +301,7 @@ async function loadComparison() {
     renderComparisonTable();
     renderClimateChart();
     updateMetrics();
+    collapseFilters();
   } catch (error) {
     console.error(error);
     alert("Failed to load comparison data.");
@@ -469,6 +485,17 @@ function resetDashboard() {
   }
 
   updateMetrics();
+  expandFilters();
+}
+
+function collapseFilters() {
+  els.filtersCard.classList.add("is-collapsed");
+  els.editFiltersBtn.classList.remove("hidden");
+}
+
+function expandFilters() {
+  els.filtersCard.classList.remove("is-collapsed");
+  els.editFiltersBtn.classList.add("hidden");
 }
 
 function normalizeMonthlySeries(arr) {

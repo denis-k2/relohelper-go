@@ -147,6 +147,13 @@ h1 {
     margin-bottom: 18px;
 }
 
+.filters-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+}
+
 .card-header h2 {
     margin: 0 0 8px 0;
     font-size: 20px;
@@ -163,7 +170,7 @@ h1 {
     gap: 18px;
 }
 
-.filter-block label {
+.filter-block > label {
     display: block;
     font-size: 13px;
     font-weight: 600;
@@ -202,6 +209,7 @@ h1 {
     gap: 10px;
     padding: 10px 8px;
     border-radius: 10px;
+    cursor: pointer;
 }
 
 .selection-item:hover {
@@ -210,12 +218,16 @@ h1 {
 
 .selection-item input {
     accent-color: var(--primary);
+    margin: 0;
+    flex: 0 0 auto;
 }
 
 .selection-item-main {
     display: flex;
     flex-direction: column;
     gap: 3px;
+    min-width: 0;
+    flex: 1 1 auto;
 }
 
 .selection-title {
@@ -233,6 +245,18 @@ h1 {
     grid-template-columns: 1fr;
     gap: 16px;
     margin-top: 18px;
+}
+
+.filters-card.is-collapsed {
+    padding-bottom: 18px;
+}
+
+.filters-card.is-collapsed .card-header {
+    margin-bottom: 14px;
+}
+
+.filters-card.is-collapsed .filters-body {
+    display: none;
 }
 
 .summary-label {
@@ -370,5 +394,10 @@ canvas {
 
     .topbar-actions {
         justify-content: flex-start;
+    }
+
+    .filters-header {
+        flex-direction: column;
+        align-items: stretch;
     }
 }

@@ -32,12 +32,22 @@
 
             <main class="dashboard-grid">
                 <section class="card filters-card">
-                    <div class="card-header">
-                        <h2>Filters</h2>
-                        <p>Select countries first, then cities.</p>
+                    <div class="card-header filters-header">
+                        <div>
+                            <h2>Filters</h2>
+                            <p>Select countries first, then cities.</p>
+                        </div>
+                        <button
+                            id="editFiltersBtn"
+                            class="btn btn-secondary hidden"
+                            type="button"
+                        >
+                            Edit filters
+                        </button>
                     </div>
 
-                    <div class="filters-grid">
+                    <div id="filtersBody" class="filters-body">
+                        <div class="filters-grid">
                         <div class="filter-block">
                             <label for="countrySearch">Search countries</label>
                             <input
@@ -58,6 +68,7 @@
                                 placeholder="Type city name..."
                             />
                             <div id="cityList" class="selection-list"></div>
+                        </div>
                         </div>
                     </div>
 
