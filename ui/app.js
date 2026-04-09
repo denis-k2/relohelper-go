@@ -287,6 +287,7 @@ function renderSelectedCountries() {
         renderCountries();
         renderSelectedCountries();
         filterCitiesForSelectedCountries();
+        applyLoadedComparisonSelection();
       });
     });
 }
@@ -332,6 +333,7 @@ function renderSelectedCities() {
         renderCities();
         renderSelectedCities();
         updateMetrics();
+        applyLoadedComparisonSelection();
       });
     });
 }
@@ -717,11 +719,15 @@ function resetDashboard() {
 
 function collapseFilters() {
   els.filtersCard.classList.add("is-collapsed");
+  els.compareBtn.classList.add("hidden");
+  els.resetBtn.classList.add("hidden");
   els.editFiltersBtn.classList.remove("hidden");
 }
 
 function expandFilters() {
   els.filtersCard.classList.remove("is-collapsed");
+  els.compareBtn.classList.remove("hidden");
+  els.resetBtn.classList.remove("hidden");
   els.editFiltersBtn.classList.add("hidden");
 }
 
@@ -775,6 +781,27 @@ function applyBreakdownSort(param) {
   state.costBreakdownData = buildCostBreakdownDataset(state.comparisonData);
 
   renderCostBreakdownTable();
+}
+
+function applyLoadedComparisonSelection() {
+  if (!state.comparisonData.length) return;
+
+  const selectedIDs = new Set(Array.from(state.selectedCityIds));
+  state.comparisonData = state.comparisonData.filter((city) =>
+    selectedIDs.has(String(city.geoname_id ?? city.city_id ?? city.id ?? "")),
+  );
+
+  if (state.comparisonData.length === 0) {
+    state.costBreakdownData = [];
+    state.breakdownSort = null;
+    renderCostBreakdownTable();
+    renderClimateChart();
+    return;
+  }
+
+  state.costBreakdownData = buildCostBreakdownDataset(state.comparisonData);
+  renderCostBreakdownTable();
+  renderClimateChart();
 }
 
 function sortComparisonDataByCostParam(param, direction) {

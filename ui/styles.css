@@ -84,12 +84,6 @@ h1 {
     max-width: 760px;
 }
 
-.topbar-actions {
-    display: flex;
-    gap: 12px;
-    flex-shrink: 0;
-}
-
 .btn {
     border: none;
     border-radius: 12px;
@@ -155,6 +149,12 @@ h1 {
     justify-content: space-between;
     gap: 16px;
     align-items: flex-start;
+}
+
+.filters-actions {
+    display: flex;
+    gap: 12px;
+    flex-shrink: 0;
 }
 
 .card-header h2 {
