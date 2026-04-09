@@ -32,3 +32,5 @@ go.work.sum
 .envrc
 .venv/
 __pycache__
+
+.workspace/

@@ -160,6 +160,35 @@
                     </div>
                 </section>
 
+                <section class="card cost-breakdown-card">
+                    <div class="card-header">
+                        <h2>Cost of Living Breakdown</h2>
+                        <p>
+                            Row-based placeholder cost items, structured like
+                            <code>numbeo_cost.prices</code>.
+                        </p>
+                    </div>
+
+                    <div id="costBreakdownEmptyState" class="empty-state">
+                        Select cities and click <strong>Compare</strong> to
+                        build a cost breakdown table.
+                    </div>
+
+                    <div
+                        id="costBreakdownWrapper"
+                        class="table-wrapper cost-breakdown-wrapper hidden"
+                    >
+                        <table id="costBreakdownTable" class="cost-breakdown-table">
+                            <thead>
+                                <tr id="costBreakdownHeadRow">
+                                    <th>Item</th>
+                                </tr>
+                            </thead>
+                            <tbody id="costBreakdownBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
                 <section class="card chart-card">
                     <div class="card-header">
                         <h2>Climate chart</h2>

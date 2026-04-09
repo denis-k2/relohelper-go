@@ -5,6 +5,8 @@ const state = {
   selectedCountryCodes: new Set(),
   selectedCityIds: new Set(),
   comparisonData: [],
+  costBreakdownData: [],
+  collapsedCostCategories: new Set(),
   climateChart: null,
 };
 
@@ -24,6 +26,10 @@ const els = {
   chartEmptyState: document.getElementById("chartEmptyState"),
   comparisonTableWrapper: document.getElementById("comparisonTableWrapper"),
   comparisonTableBody: document.querySelector("#comparisonTable tbody"),
+  costBreakdownEmptyState: document.getElementById("costBreakdownEmptyState"),
+  costBreakdownWrapper: document.getElementById("costBreakdownWrapper"),
+  costBreakdownHeadRow: document.getElementById("costBreakdownHeadRow"),
+  costBreakdownBody: document.getElementById("costBreakdownBody"),
   metricCities: document.getElementById("metricCities"),
   metricCountries: document.getElementById("metricCountries"),
   metricLowestRent: document.getElementById("metricLowestRent"),
@@ -297,8 +303,10 @@ async function loadComparison() {
       : Array.isArray(data.data)
         ? data.data
         : [];
+    state.costBreakdownData = buildCostBreakdownDataset(state.comparisonData);
 
     renderComparisonTable();
+    renderCostBreakdownTable();
     renderClimateChart();
     updateMetrics();
     collapseFilters();
@@ -417,6 +425,208 @@ function renderClimateChart() {
   });
 }
 
+function renderCostBreakdownTable() {
+  if (!state.costBreakdownData.length || !state.comparisonData.length) {
+    els.costBreakdownEmptyState.classList.remove("hidden");
+    els.costBreakdownWrapper.classList.add("hidden");
+    return;
+  }
+
+  els.costBreakdownEmptyState.classList.add("hidden");
+  els.costBreakdownWrapper.classList.remove("hidden");
+
+  els.costBreakdownHeadRow.innerHTML = `
+    <th>Item</th>
+    ${state.comparisonData
+      .map((city) => {
+        const cityName = city.city ?? city.name ?? "City";
+        const country = city.country_code ?? city.country ?? "";
+        return `<th>${escapeHtml(cityName)}<br><span class="selection-subtitle">${escapeHtml(String(country))}</span></th>`;
+      })
+      .join("")}
+  `;
+
+  els.costBreakdownBody.innerHTML = state.costBreakdownData
+    .map((group) => {
+      const isCollapsed = state.collapsedCostCategories.has(group.category);
+      const groupRows = group.items
+        .map((item) => {
+          const isSalaryRow =
+            item.param === "Average Monthly Net Salary (After Tax)";
+          const isMortgageRateRow =
+            item.param === "Annual Mortgage Interest Rate (20-Year Fixed, in %)";
+          const numericEntries = item.values
+            .map((value, index) => ({
+              index,
+              numericValue: toNumber(value?.cost),
+            }))
+            .filter((entry) => entry.numericValue != null);
+          const numericValues = numericEntries.map((entry) => entry.numericValue);
+          const minValue =
+            numericValues.length > 0 ? Math.min(...numericValues) : null;
+          const maxValue =
+            numericValues.length > 0 ? Math.max(...numericValues) : null;
+          const shouldApplySecondary =
+            item.values.length - numericValues.length <= 1 && numericValues.length >= 3;
+          const sortedUniqueValues = shouldApplySecondary
+            ? Array.from(new Set(numericValues)).sort((a, b) => a - b)
+            : [];
+          const secondMinValue =
+            sortedUniqueValues.length >= 3 ? sortedUniqueValues[1] : null;
+          const secondMaxValue =
+            sortedUniqueValues.length >= 3
+              ? sortedUniqueValues[sortedUniqueValues.length - 2]
+              : null;
+          const cells = item.values
+            .map((value) => {
+              const numericValue = toNumber(value?.cost);
+              let cellClass = "cost-value";
+
+              if (numericValue != null && minValue != null && maxValue != null && minValue !== maxValue) {
+                if (isSalaryRow) {
+                  if (numericValue === minValue) {
+                    cellClass += " cost-value-high";
+                  } else if (numericValue === maxValue) {
+                    cellClass += " cost-value-low";
+                  } else if (shouldApplySecondary && secondMinValue != null && numericValue === secondMinValue) {
+                    cellClass += " cost-value-high-soft";
+                  } else if (shouldApplySecondary && secondMaxValue != null && numericValue === secondMaxValue) {
+                    cellClass += " cost-value-low-soft";
+                  }
+                } else if (numericValue === minValue) {
+                  cellClass += " cost-value-low";
+                } else if (numericValue === maxValue) {
+                  cellClass += " cost-value-high";
+                } else if (shouldApplySecondary && secondMinValue != null && numericValue === secondMinValue) {
+                  cellClass += " cost-value-low-soft";
+                } else if (shouldApplySecondary && secondMaxValue != null && numericValue === secondMaxValue) {
+                  cellClass += " cost-value-high-soft";
+                }
+              }
+
+              return `<td class="${cellClass}">${escapeHtml(formatCostValue(value, { isMortgageRate: isMortgageRateRow }))}</td>`;
+            })
+            .join("");
+
+          return `
+            <tr ${isCollapsed ? 'class="hidden"' : ""}>
+              <td class="cost-item-name">${escapeHtml(item.param)}</td>
+              ${cells}
+            </tr>
+          `;
+        })
+        .join("");
+
+      return `
+        <tr class="cost-group-row ${isCollapsed ? "is-collapsed" : ""}">
+          <td class="cost-group-cell cost-group-cell-main">
+            <button class="cost-group-toggle" type="button" data-cost-group="${escapeHtml(group.category)}" aria-expanded="${isCollapsed ? "false" : "true"}">
+              <span class="cost-group-label">
+                <span class="cost-group-arrow">▾</span>
+                <span>${escapeHtml(group.category)}</span>
+              </span>
+            </button>
+          </td>
+          <td class="cost-group-cell cost-group-cell-fill" colspan="${state.comparisonData.length}">
+            <span class="cost-group-count">${group.items.length} items</span>
+          </td>
+        </tr>
+        ${groupRows}
+      `;
+    })
+    .join("");
+
+  els.costBreakdownBody
+    .querySelectorAll("[data-cost-group]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        const category = button.dataset.costGroup;
+        if (!category) return;
+
+        if (state.collapsedCostCategories.has(category)) {
+          state.collapsedCostCategories.delete(category);
+        } else {
+          state.collapsedCostCategories.add(category);
+        }
+
+        renderCostBreakdownTable();
+      });
+    });
+}
+
+function buildCostBreakdownDataset(cities) {
+  if (!cities.length) return [];
+
+  const preferredCategoryOrder = [
+    "Summary",
+    "Rent Per Month",
+    "Markets",
+    "Restaurants",
+    "Transportation",
+    "Utilities (Monthly)",
+    "Sports And Leisure",
+    "Childcare",
+    "Clothing And Shoes",
+    "Buy Apartment Price",
+    "Salaries And Financing",
+  ];
+  const categories = new Map();
+
+  for (const city of cities) {
+    const prices = city.numbeo_cost?.prices;
+    if (!Array.isArray(prices)) continue;
+
+    for (const price of prices) {
+      if (!price?.category || !price?.param) continue;
+
+      if (!categories.has(price.category)) {
+        categories.set(price.category, new Map());
+      }
+
+      const categoryItems = categories.get(price.category);
+      if (!categoryItems.has(price.param)) {
+        categoryItems.set(price.param, true);
+      }
+    }
+  }
+
+  const sortedCategories = Array.from(categories.keys()).sort((a, b) => {
+    const aIndex = preferredCategoryOrder.indexOf(a);
+    const bIndex = preferredCategoryOrder.indexOf(b);
+    if (aIndex === -1 && bIndex === -1) return a.localeCompare(b);
+    if (aIndex === -1) return 1;
+    if (bIndex === -1) return -1;
+    return aIndex - bIndex;
+  });
+
+  return sortedCategories.map((category) => {
+    const params = Array.from(categories.get(category).keys());
+
+    return {
+      category,
+      items: params.map((param) => ({
+        param,
+        values: cities.map((city) => {
+          const prices = city.numbeo_cost?.prices;
+          const currency = city.numbeo_cost?.currency ?? "USD";
+          if (!Array.isArray(prices)) {
+            return { cost: null, currency };
+          }
+
+          const entry = prices.find(
+            (price) => price.category === category && price.param === param,
+          );
+
+          return {
+            cost: entry?.cost ?? null,
+            currency,
+          };
+        }),
+      })),
+    };
+  });
+}
+
 function updateMetrics() {
   els.metricCities.textContent = String(state.selectedCityIds.size);
   els.metricCountries.textContent = String(state.selectedCountryCodes.size);
@@ -468,6 +678,8 @@ function resetDashboard() {
   state.selectedCityIds.clear();
   state.cities = [];
   state.comparisonData = [];
+  state.costBreakdownData = [];
+  state.collapsedCostCategories.clear();
 
   els.countrySearch.value = "";
   els.citySearch.value = "";
@@ -477,6 +689,7 @@ function resetDashboard() {
   renderSelectedCountries();
   renderSelectedCities();
   renderComparisonTable();
+  renderCostBreakdownTable();
 
   els.chartEmptyState.classList.remove("hidden");
   if (state.climateChart) {
@@ -515,6 +728,24 @@ function toNumber(value) {
 function fmt(value) {
   const n = toNumber(value);
   return n == null ? "—" : n.toFixed(1);
+}
+
+function formatCostValue(value, options = {}) {
+  if (!value) return "—";
+  const n = toNumber(value.cost);
+  if (n == null) return "—";
+
+  if (options.isMortgageRate) {
+    return `${n.toFixed(2)}%`;
+  }
+
+  const fractionDigits = n >= 100 ? 0 : 2;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: value.currency ?? "USD",
+    maximumFractionDigits: fractionDigits,
+    minimumFractionDigits: fractionDigits,
+  }).format(n);
 }
 
 function escapeHtml(value) {
