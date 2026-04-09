@@ -430,30 +430,41 @@ h1 {
 
 .cost-breakdown-table {
     min-width: 940px;
+    table-layout: fixed;
 }
 
 .cost-breakdown-table thead th {
     text-align: right;
+    width: 138px;
 }
 
 .cost-breakdown-table thead th:first-child {
     text-align: left;
+    width: var(--breakdown-item-col-width);
 }
 
 .table-city-name {
     display: inline-block;
+    max-width: 100%;
     font-size: 14px;
     font-weight: 600;
     color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .table-city-meta {
     display: inline-block;
     margin-top: 4px;
+    max-width: 100%;
     font-size: 12px;
     font-weight: 500;
     letter-spacing: 0.03em;
     color: #7c8aa0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .cost-breakdown-table thead th:first-child,

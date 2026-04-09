@@ -11,6 +11,25 @@ const state = {
   climateChart: null,
 };
 
+const countryDisplayNames = {
+  "Bolivia, Plurinational State of": "Bolivia",
+  "Bosnia and Herzegovina": "Bosnia & Herzegovina",
+  "Dominican Republic": "Dominican Rep.",
+  "Iran, Islamic Republic of": "Iran",
+  "Korea, Republic of": "South Korea",
+  "Moldova, Republic of": "Moldova",
+  "Netherlands, Kingdom of the": "Netherlands",
+  "North Macedonia": "N. Macedonia",
+  "Russian Federation": "Russia",
+  "Syrian Arab Republic": "Syria",
+  "Taiwan, Province of China": "Taiwan",
+  "Tanzania, United Republic of": "Tanzania",
+  "United Arab Emirates": "UAE",
+  "United Kingdom of Great Britain and Northern Ireland": "United Kingdom",
+  "United States of America": "USA",
+  "Venezuela, Bolivarian Republic of": "Venezuela",
+};
+
 const els = {
   filtersCard: document.querySelector(".filters-card"),
   filtersBody: document.getElementById("filtersBody"),
@@ -260,14 +279,15 @@ function renderSelectedCountries() {
       const code = country.country_code ?? country.code ?? "";
       const name =
         country.country ?? country.country_name ?? country.name ?? "";
+      const displayName = getDisplayCountryName(name);
       return `
         <span class="chip chip-dismissible">
-          <span>${escapeHtml(name)}</span>
+          <span>${escapeHtml(displayName)}</span>
           <button
             type="button"
             class="chip-remove"
             data-remove-country="${escapeHtml(code)}"
-            aria-label="Remove ${escapeHtml(name)}"
+            aria-label="Remove ${escapeHtml(displayName)}"
           >
             ×
           </button>
@@ -469,8 +489,10 @@ function renderCostBreakdownTable() {
     ${state.comparisonData
       .map((city) => {
         const cityName = city.city ?? city.name ?? "City";
-        const country = city.country_code ?? city.country ?? "";
-        return `<th><span class="table-city-name">${escapeHtml(cityName)}</span><br><span class="table-city-meta">${escapeHtml(String(country))}</span></th>`;
+        const country =
+          city.country ?? city.country_name ?? city.country_code ?? "";
+        const displayCountry = getDisplayCountryName(country);
+        return `<th><span class="table-city-name" title="${escapeHtml(String(cityName))}">${escapeHtml(cityName)}</span><br><span class="table-city-meta" title="${escapeHtml(String(country))}">${escapeHtml(String(displayCountry))}</span></th>`;
       })
       .join("")}
   `;
@@ -483,22 +505,28 @@ function renderCostBreakdownTable() {
           const isSalaryRow =
             item.param === "Average Monthly Net Salary (After Tax)";
           const isMortgageRateRow =
-            item.param === "Annual Mortgage Interest Rate (20-Year Fixed, in %)";
+            item.param ===
+            "Annual Mortgage Interest Rate (20-Year Fixed, in %)";
           const isActiveSort = state.breakdownSort?.param === item.param;
-          const sortDirection = isActiveSort ? state.breakdownSort.direction : null;
+          const sortDirection = isActiveSort
+            ? state.breakdownSort.direction
+            : null;
           const numericEntries = item.values
             .map((value, index) => ({
               index,
               numericValue: toNumber(value?.cost),
             }))
             .filter((entry) => entry.numericValue != null);
-          const numericValues = numericEntries.map((entry) => entry.numericValue);
+          const numericValues = numericEntries.map(
+            (entry) => entry.numericValue,
+          );
           const minValue =
             numericValues.length > 0 ? Math.min(...numericValues) : null;
           const maxValue =
             numericValues.length > 0 ? Math.max(...numericValues) : null;
           const shouldApplySecondary =
-            item.values.length - numericValues.length <= 1 && numericValues.length >= 3;
+            item.values.length - numericValues.length <= 1 &&
+            numericValues.length >= 3;
           const sortedUniqueValues = shouldApplySecondary
             ? Array.from(new Set(numericValues)).sort((a, b) => a - b)
             : [];
@@ -513,24 +541,45 @@ function renderCostBreakdownTable() {
               const numericValue = toNumber(value?.cost);
               let cellClass = "cost-value";
 
-              if (numericValue != null && minValue != null && maxValue != null && minValue !== maxValue) {
+              if (
+                numericValue != null &&
+                minValue != null &&
+                maxValue != null &&
+                minValue !== maxValue
+              ) {
                 if (isSalaryRow) {
                   if (numericValue === minValue) {
                     cellClass += " cost-value-high";
                   } else if (numericValue === maxValue) {
                     cellClass += " cost-value-low";
-                  } else if (shouldApplySecondary && secondMinValue != null && numericValue === secondMinValue) {
+                  } else if (
+                    shouldApplySecondary &&
+                    secondMinValue != null &&
+                    numericValue === secondMinValue
+                  ) {
                     cellClass += " cost-value-high-soft";
-                  } else if (shouldApplySecondary && secondMaxValue != null && numericValue === secondMaxValue) {
+                  } else if (
+                    shouldApplySecondary &&
+                    secondMaxValue != null &&
+                    numericValue === secondMaxValue
+                  ) {
                     cellClass += " cost-value-low-soft";
                   }
                 } else if (numericValue === minValue) {
                   cellClass += " cost-value-low";
                 } else if (numericValue === maxValue) {
                   cellClass += " cost-value-high";
-                } else if (shouldApplySecondary && secondMinValue != null && numericValue === secondMinValue) {
+                } else if (
+                  shouldApplySecondary &&
+                  secondMinValue != null &&
+                  numericValue === secondMinValue
+                ) {
                   cellClass += " cost-value-low-soft";
-                } else if (shouldApplySecondary && secondMaxValue != null && numericValue === secondMaxValue) {
+                } else if (
+                  shouldApplySecondary &&
+                  secondMaxValue != null &&
+                  numericValue === secondMaxValue
+                ) {
                   cellClass += " cost-value-high-soft";
                 }
               }
@@ -772,7 +821,8 @@ function applyBreakdownSort(param) {
   if (!state.comparisonData.length) return;
 
   const nextDirection =
-    state.breakdownSort?.param === param && state.breakdownSort.direction === "desc"
+    state.breakdownSort?.param === param &&
+    state.breakdownSort.direction === "desc"
       ? "asc"
       : "desc";
 
@@ -833,6 +883,11 @@ function getCostParamValue(city, param) {
 
   const entry = prices.find((price) => price?.param === param);
   return toNumber(entry?.cost);
+}
+
+function getDisplayCountryName(country) {
+  const raw = String(country ?? "");
+  return countryDisplayNames[raw] ?? raw;
 }
 
 function escapeHtml(value) {
