@@ -448,7 +448,7 @@ function renderCostBreakdownTable() {
       .map((city) => {
         const cityName = city.city ?? city.name ?? "City";
         const country = city.country_code ?? city.country ?? "";
-        return `<th>${escapeHtml(cityName)}<br><span class="selection-subtitle">${escapeHtml(String(country))}</span></th>`;
+        return `<th><span class="table-city-name">${escapeHtml(cityName)}</span><br><span class="table-city-meta">${escapeHtml(String(country))}</span></th>`;
       })
       .join("")}
   `;

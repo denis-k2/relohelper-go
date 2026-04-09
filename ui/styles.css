@@ -340,6 +340,22 @@ h1 {
     text-align: left;
 }
 
+.table-city-name {
+    display: inline-block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.table-city-meta {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    color: #7c8aa0;
+}
+
 .cost-breakdown-table thead th:first-child,
 .cost-breakdown-table tbody td:first-child {
     position: sticky;
