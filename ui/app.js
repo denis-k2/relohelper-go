@@ -26,10 +26,7 @@ const els = {
   selectedCitiesLimitHint: document.getElementById("selectedCitiesLimitHint"),
   compareBtn: document.getElementById("compareBtn"),
   resetBtn: document.getElementById("resetBtn"),
-  tableEmptyState: document.getElementById("tableEmptyState"),
   chartEmptyState: document.getElementById("chartEmptyState"),
-  comparisonTableWrapper: document.getElementById("comparisonTableWrapper"),
-  comparisonTableBody: document.querySelector("#comparisonTable tbody"),
   costBreakdownEmptyState: document.getElementById("costBreakdownEmptyState"),
   costBreakdownWrapper: document.getElementById("costBreakdownWrapper"),
   costBreakdownHeadRow: document.getElementById("costBreakdownHeadRow"),
@@ -70,8 +67,8 @@ async function loadInitialData() {
     updateMetrics();
   } catch (error) {
     console.error(error);
-    els.countryList.innerHTML = `<div class="empty-state">Failed to load countries.</div>`;
-    els.cityList.innerHTML = `<div class="empty-state">Failed to load cities.</div>`;
+    els.countryList.innerHTML = `<div class="selection-list-empty">Failed to load countries.</div>`;
+    els.cityList.innerHTML = `<div class="selection-list-empty">Failed to load cities.</div>`;
   }
 }
 
@@ -147,7 +144,7 @@ function renderCountries() {
   });
 
   if (filtered.length === 0) {
-    els.countryList.innerHTML = `<div class="empty-state">No countries found.</div>`;
+    els.countryList.innerHTML = `<div class="selection-list-empty">No countries found.</div>`;
     return;
   }
 
@@ -201,9 +198,9 @@ function renderCities() {
 
   if (filtered.length === 0) {
     if (state.selectedCountryCodes.size === 0) {
-      els.cityList.innerHTML = `<div class="empty-state">Select countries to load cities.</div>`;
+      els.cityList.innerHTML = `<div class="selection-list-empty">Select countries to load cities.</div>`;
     } else {
-      els.cityList.innerHTML = `<div class="empty-state">No cities match the current selection.</div>`;
+      els.cityList.innerHTML = `<div class="selection-list-empty">No cities match the current selection.</div>`;
     }
     return;
   }
@@ -260,11 +257,38 @@ function renderSelectedCountries() {
 
   els.selectedCountries.innerHTML = items
     .map((country) => {
+      const code = country.country_code ?? country.code ?? "";
       const name =
         country.country ?? country.country_name ?? country.name ?? "";
-      return `<span class="chip">${escapeHtml(name)}</span>`;
+      return `
+        <span class="chip chip-dismissible">
+          <span>${escapeHtml(name)}</span>
+          <button
+            type="button"
+            class="chip-remove"
+            data-remove-country="${escapeHtml(code)}"
+            aria-label="Remove ${escapeHtml(name)}"
+          >
+            ×
+          </button>
+        </span>
+      `;
     })
     .join("");
+
+  els.selectedCountries
+    .querySelectorAll("[data-remove-country]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        const code = button.dataset.removeCountry;
+        if (!code) return;
+
+        state.selectedCountryCodes.delete(code);
+        renderCountries();
+        renderSelectedCountries();
+        filterCitiesForSelectedCountries();
+      });
+    });
 }
 
 function renderSelectedCities() {
@@ -279,10 +303,37 @@ function renderSelectedCities() {
 
   els.selectedCities.innerHTML = items
     .map((city) => {
+      const id = String(city.geoname_id ?? city.city_id ?? city.id ?? "");
       const name = city.city ?? city.name ?? "";
-      return `<span class="chip">${escapeHtml(name)}</span>`;
+      return `
+        <span class="chip chip-dismissible">
+          <span>${escapeHtml(name)}</span>
+          <button
+            type="button"
+            class="chip-remove"
+            data-remove-city="${escapeHtml(id)}"
+            aria-label="Remove ${escapeHtml(name)}"
+          >
+            ×
+          </button>
+        </span>
+      `;
     })
     .join("");
+
+  els.selectedCities
+    .querySelectorAll("[data-remove-city]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        const id = button.dataset.removeCity;
+        if (!id) return;
+
+        state.selectedCityIds.delete(id);
+        renderCities();
+        renderSelectedCities();
+        updateMetrics();
+      });
+    });
 }
 
 async function loadComparison() {
@@ -310,7 +361,6 @@ async function loadComparison() {
     state.breakdownSort = null;
     state.costBreakdownData = buildCostBreakdownDataset(state.comparisonData);
 
-    renderComparisonTable();
     renderCostBreakdownTable();
     renderClimateChart();
     updateMetrics();
@@ -319,39 +369,6 @@ async function loadComparison() {
     console.error(error);
     alert("Failed to load comparison data.");
   }
-}
-
-function renderComparisonTable() {
-  if (!state.comparisonData.length) {
-    els.tableEmptyState.classList.remove("hidden");
-    els.comparisonTableWrapper.classList.add("hidden");
-    return;
-  }
-
-  els.tableEmptyState.classList.add("hidden");
-  els.comparisonTableWrapper.classList.remove("hidden");
-
-  els.comparisonTableBody.innerHTML = state.comparisonData
-    .map((city) => {
-      const cityName = city.city ?? city.name ?? "—";
-      const country =
-        city.country ?? city.country_name ?? city.country_code ?? "—";
-      const idx = city.numbeo_indices ?? {};
-      return `
-        <tr>
-          <td>${escapeHtml(String(cityName))}</td>
-          <td>${escapeHtml(String(country))}</td>
-          <td>${fmt(idx.cost_of_living)}</td>
-          <td>${fmt(idx.rent_index ?? idx.rent)}</td>
-          <td>${fmt(idx.groceries_index ?? idx.groceries)}</td>
-          <td>${fmt(idx.restaurant_price_index ?? idx.restaurant)}</td>
-          <td>${fmt(idx.quality_of_life)}</td>
-          <td>${fmt(idx.safety)}</td>
-          <td>${fmt(idx.health_care)}</td>
-        </tr>
-      `;
-    })
-    .join("");
 }
 
 function renderClimateChart() {
@@ -686,7 +703,6 @@ function resetDashboard() {
   renderCities();
   renderSelectedCountries();
   renderSelectedCities();
-  renderComparisonTable();
   renderCostBreakdownTable();
 
   els.chartEmptyState.classList.remove("hidden");
@@ -758,7 +774,6 @@ function applyBreakdownSort(param) {
   state.breakdownSort = { param, direction: nextDirection };
   state.costBreakdownData = buildCostBreakdownDataset(state.comparisonData);
 
-  renderComparisonTable();
   renderCostBreakdownTable();
 }
 
