@@ -250,6 +250,53 @@ h1 {
     margin-top: 18px;
 }
 
+.summary-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-start;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: nowrap;
+}
+
+.summary-label {
+    line-height: 1.2;
+}
+
+.summary-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    flex: 0 0 auto;
+}
+
+.summary-count.is-warning {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.summary-limit-hint {
+    display: inline-flex;
+    align-items: center;
+    color: #b91c1c;
+    background: #fff1f2;
+    border: 1px solid #fecdd3;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    flex: 0 0 auto;
+}
+
 .filters-card.is-collapsed {
     padding-bottom: 18px;
 }

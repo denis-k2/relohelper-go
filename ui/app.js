@@ -21,6 +21,9 @@ const els = {
   cityList: document.getElementById("cityList"),
   selectedCountries: document.getElementById("selectedCountries"),
   selectedCities: document.getElementById("selectedCities"),
+  selectedCountriesCount: document.getElementById("selectedCountriesCount"),
+  selectedCitiesCount: document.getElementById("selectedCitiesCount"),
+  selectedCitiesLimitHint: document.getElementById("selectedCitiesLimitHint"),
   compareBtn: document.getElementById("compareBtn"),
   resetBtn: document.getElementById("resetBtn"),
   tableEmptyState: document.getElementById("tableEmptyState"),
@@ -31,10 +34,6 @@ const els = {
   costBreakdownWrapper: document.getElementById("costBreakdownWrapper"),
   costBreakdownHeadRow: document.getElementById("costBreakdownHeadRow"),
   costBreakdownBody: document.getElementById("costBreakdownBody"),
-  metricCities: document.getElementById("metricCities"),
-  metricCountries: document.getElementById("metricCountries"),
-  metricLowestRent: document.getElementById("metricLowestRent"),
-  metricBestQol: document.getElementById("metricBestQol"),
   climateCanvas: document.getElementById("climateChart"),
 };
 
@@ -192,6 +191,7 @@ function renderCountries() {
 
 function renderCities() {
   const q = els.citySearch.value.trim().toLowerCase();
+  const cityLimitReached = state.selectedCityIds.size >= 20;
 
   const filtered = state.cities.filter((city) => {
     const cityName = (city.city ?? city.name ?? "").toLowerCase();
@@ -214,11 +214,13 @@ function renderCities() {
       const cityName = city.city ?? city.name ?? id;
       const countryName =
         city.country ?? city.country_name ?? city.country_code ?? "";
-      const checked = state.selectedCityIds.has(id) ? "checked" : "";
+      const isChecked = state.selectedCityIds.has(id);
+      const checked = isChecked ? "checked" : "";
+      const disabled = cityLimitReached && !isChecked ? "disabled" : "";
 
       return `
         <label class="selection-item">
-          <input type="checkbox" data-city-id="${escapeHtml(id)}" ${checked} />
+          <input type="checkbox" data-city-id="${escapeHtml(id)}" ${checked} ${disabled} />
           <div class="selection-item-main">
             <span class="selection-title">${escapeHtml(cityName)}</span>
             <span class="selection-subtitle">${escapeHtml(countryName)}</span>
@@ -239,6 +241,7 @@ function renderCities() {
         state.selectedCityIds.delete(id);
       }
 
+      renderCities();
       renderSelectedCities();
       updateMetrics();
     });
@@ -657,49 +660,14 @@ function buildCostBreakdownDataset(cities) {
 }
 
 function updateMetrics() {
-  els.metricCities.textContent = String(state.selectedCityIds.size);
-  els.metricCountries.textContent = String(state.selectedCountryCodes.size);
+  const cityCount = state.selectedCityIds.size;
+  const countryCount = state.selectedCountryCodes.size;
+  const cityLimitReached = cityCount >= 20;
 
-  if (!state.comparisonData.length) {
-    els.metricLowestRent.textContent = "—";
-    els.metricBestQol.textContent = "—";
-    return;
-  }
-
-  let lowestRentCity = null;
-  let bestQolCity = null;
-
-  for (const city of state.comparisonData) {
-    const idx = city.numbeo_indices ?? {};
-    const rent = toNumber(idx.rent_index ?? idx.rent);
-    const qol = toNumber(idx.quality_of_life);
-
-    if (rent != null) {
-      if (!lowestRentCity || rent < lowestRentCity.value) {
-        lowestRentCity = {
-          name: city.city ?? city.name ?? "—",
-          value: rent,
-        };
-      }
-    }
-
-    if (qol != null) {
-      if (!bestQolCity || qol > bestQolCity.value) {
-        bestQolCity = {
-          name: city.city ?? city.name ?? "—",
-          value: qol,
-        };
-      }
-    }
-  }
-
-  els.metricLowestRent.textContent = lowestRentCity
-    ? `${lowestRentCity.name} (${fmt(lowestRentCity.value)})`
-    : "—";
-
-  els.metricBestQol.textContent = bestQolCity
-    ? `${bestQolCity.name} (${fmt(bestQolCity.value)})`
-    : "—";
+  els.selectedCitiesCount.textContent = String(cityCount);
+  els.selectedCountriesCount.textContent = String(countryCount);
+  els.selectedCitiesCount.classList.toggle("is-warning", cityLimitReached);
+  els.selectedCitiesLimitHint.classList.toggle("hidden", !cityLimitReached);
 }
 
 function resetDashboard() {
