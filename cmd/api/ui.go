@@ -28,3 +28,7 @@ func (app *application) dashboardAppJSHandler(w http.ResponseWriter, r *http.Req
 func (app *application) dashboardStylesHandler(w http.ResponseWriter, r *http.Request) {
 	app.serveUIAsset(w, r, "styles.css", "text/css; charset=utf-8")
 }
+
+func (app *application) dashboardFaviconHandler(w http.ResponseWriter, r *http.Request) {
+	app.serveUIAsset(w, r, "favicon.svg", "image/svg+xml")
+}
