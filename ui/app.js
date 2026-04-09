@@ -7,6 +7,7 @@ const state = {
   comparisonData: [],
   costBreakdownData: [],
   collapsedCostCategories: new Set(),
+  breakdownSort: null,
   climateChart: null,
 };
 
@@ -303,6 +304,7 @@ async function loadComparison() {
       : Array.isArray(data.data)
         ? data.data
         : [];
+    state.breakdownSort = null;
     state.costBreakdownData = buildCostBreakdownDataset(state.comparisonData);
 
     renderComparisonTable();
@@ -350,6 +352,11 @@ function renderComparisonTable() {
 }
 
 function renderClimateChart() {
+  const chartCities = [...state.comparisonData].sort((a, b) => {
+    const aName = (a.city ?? a.name ?? "").toLowerCase();
+    const bName = (b.city ?? b.name ?? "").toLowerCase();
+    return aName.localeCompare(bName);
+  });
   const datasets = [];
   const labels = [
     "Jan",
@@ -366,7 +373,7 @@ function renderClimateChart() {
     "Dec",
   ];
 
-  for (const city of state.comparisonData) {
+  for (const city of chartCities) {
     const climate = city.avg_climate ?? {};
     const highTemp =
       climate.high_temp ?? climate.high_temps ?? climate.avg_high_temp ?? [];
@@ -455,6 +462,8 @@ function renderCostBreakdownTable() {
             item.param === "Average Monthly Net Salary (After Tax)";
           const isMortgageRateRow =
             item.param === "Annual Mortgage Interest Rate (20-Year Fixed, in %)";
+          const isActiveSort = state.breakdownSort?.param === item.param;
+          const sortDirection = isActiveSort ? state.breakdownSort.direction : null;
           const numericEntries = item.values
             .map((value, index) => ({
               index,
@@ -510,7 +519,17 @@ function renderCostBreakdownTable() {
 
           return `
             <tr ${isCollapsed ? 'class="hidden"' : ""}>
-              <td class="cost-item-name">${escapeHtml(item.param)}</td>
+              <td class="cost-item-name">
+                <button
+                  class="cost-item-sort ${isActiveSort ? "is-active" : ""}"
+                  type="button"
+                  data-cost-param="${escapeHtml(item.param)}"
+                  data-cost-sort-direction="${sortDirection ?? ""}"
+                >
+                  <span>${escapeHtml(item.param)}</span>
+                  <span class="cost-item-sort-indicator" aria-hidden="true">${sortDirection === "asc" ? "↑" : sortDirection === "desc" ? "↓" : ""}</span>
+                </button>
+              </td>
               ${cells}
             </tr>
           `;
@@ -550,6 +569,16 @@ function renderCostBreakdownTable() {
         }
 
         renderCostBreakdownTable();
+      });
+    });
+
+  els.costBreakdownBody
+    .querySelectorAll("[data-cost-param]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        const param = button.dataset.costParam;
+        if (!param) return;
+        applyBreakdownSort(param);
       });
     });
 }
@@ -680,6 +709,7 @@ function resetDashboard() {
   state.comparisonData = [];
   state.costBreakdownData = [];
   state.collapsedCostCategories.clear();
+  state.breakdownSort = null;
 
   els.countrySearch.value = "";
   els.citySearch.value = "";
@@ -746,6 +776,53 @@ function formatCostValue(value, options = {}) {
     maximumFractionDigits: fractionDigits,
     minimumFractionDigits: fractionDigits,
   }).format(n);
+}
+
+function applyBreakdownSort(param) {
+  if (!state.comparisonData.length) return;
+
+  const nextDirection =
+    state.breakdownSort?.param === param && state.breakdownSort.direction === "desc"
+      ? "asc"
+      : "desc";
+
+  sortComparisonDataByCostParam(param, nextDirection);
+  state.breakdownSort = { param, direction: nextDirection };
+  state.costBreakdownData = buildCostBreakdownDataset(state.comparisonData);
+
+  renderComparisonTable();
+  renderCostBreakdownTable();
+}
+
+function sortComparisonDataByCostParam(param, direction) {
+  const multiplier = direction === "asc" ? 1 : -1;
+
+  state.comparisonData = state.comparisonData
+    .map((city, index) => ({
+      city,
+      index,
+      value: getCostParamValue(city, param),
+    }))
+    .sort((a, b) => {
+      const aMissing = a.value == null;
+      const bMissing = b.value == null;
+
+      if (aMissing && bMissing) return a.index - b.index;
+      if (aMissing) return 1;
+      if (bMissing) return -1;
+      if (a.value === b.value) return a.index - b.index;
+
+      return (a.value - b.value) * multiplier;
+    })
+    .map((entry) => entry.city);
+}
+
+function getCostParamValue(city, param) {
+  const prices = city.numbeo_cost?.prices;
+  if (!Array.isArray(prices)) return null;
+
+  const entry = prices.find((price) => price?.param === param);
+  return toNumber(entry?.cost);
 }
 
 function escapeHtml(value) {

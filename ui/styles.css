@@ -442,8 +442,43 @@ h1 {
 
 .cost-item-name {
     min-width: var(--breakdown-item-col-width);
-    font-weight: 600;
+    padding: 0;
+}
+
+.cost-item-sort {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 16px;
+    border: none;
+    background: transparent;
     color: var(--text);
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+
+.cost-item-sort:hover {
+    background: #fafcff;
+}
+
+.cost-item-sort-indicator {
+    color: #94a3b8;
+    font-size: 14px;
+    flex: 0 0 auto;
+    font-weight: 400;
+    min-width: 14px;
+    text-align: center;
+}
+
+.cost-item-sort.is-active .cost-item-sort-indicator {
+    color: #1d4ed8;
+    font-weight: 700;
+    font-size: 16px;
+    text-shadow: 0 0 0 currentColor;
 }
 
 .cost-value {
