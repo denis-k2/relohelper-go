@@ -12,6 +12,7 @@
     --radius-sm: 12px;
     --success: #059669;
     --breakdown-item-col-width: 380px;
+    --indices-item-col-width: 270px;
     --breakdown-meta-col-width: 132px;
 }
 
@@ -132,7 +133,8 @@ h1 {
 .filters-card,
 .table-card,
 .cost-breakdown-card,
-.chart-card {
+.chart-card,
+.indices-card {
     grid-column: 1 / -1;
 }
 
@@ -428,7 +430,16 @@ h1 {
     max-height: 840px;
 }
 
+.indices-table-wrapper {
+    max-height: 720px;
+}
+
 .cost-breakdown-table {
+    min-width: 940px;
+    table-layout: fixed;
+}
+
+.indices-table {
     min-width: 940px;
     table-layout: fixed;
 }
@@ -438,9 +449,19 @@ h1 {
     width: 124px;
 }
 
+.indices-table thead th {
+    text-align: right;
+    width: 124px;
+}
+
 .cost-breakdown-table thead th:first-child {
     text-align: left;
     width: var(--breakdown-item-col-width);
+}
+
+.indices-table thead th:first-child {
+    text-align: left;
+    width: var(--indices-item-col-width);
 }
 
 .table-city-name {
@@ -474,7 +495,18 @@ h1 {
     background: white;
 }
 
+.indices-table thead th:first-child,
+.indices-table tbody td:first-child {
+    position: sticky;
+    left: 0;
+    background: white;
+}
+
 .cost-breakdown-table tbody td:first-child {
+    z-index: 1;
+}
+
+.indices-table tbody td:first-child {
     z-index: 1;
 }
 
@@ -482,7 +514,16 @@ h1 {
     z-index: 3;
 }
 
+.indices-table thead th {
+    z-index: 3;
+}
+
 .cost-breakdown-table thead th:first-child {
+    z-index: 4;
+    background: #f8fafc;
+}
+
+.indices-table thead th:first-child {
     z-index: 4;
     background: #f8fafc;
 }
@@ -637,6 +678,24 @@ h1 {
 .cost-breakdown-table tbody td {
     padding-top: 11px;
     padding-bottom: 11px;
+}
+
+.indices-table tbody td {
+    padding-top: 11px;
+    padding-bottom: 11px;
+}
+
+.indices-item-name {
+    min-width: var(--indices-item-col-width);
+    padding: 0;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.indices-value {
+    text-align: right;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
 }
 
 table {

@@ -8,6 +8,7 @@ const state = {
   costBreakdownData: [],
   collapsedCostCategories: new Set(),
   breakdownSort: null,
+  indicesSort: null,
   climateCharts: [],
   climateHiddenCities: new Set(),
   climateHoveredCityKey: null,
@@ -32,6 +33,21 @@ const countryDisplayNames = {
   "Venezuela, Bolivarian Republic of": "Venezuela",
 };
 
+const numbeoIndexRows = [
+  { key: "quality_of_life", label: "Quality of Life", better: "high" },
+  { key: "safety", label: "Safety", better: "high" },
+  { key: "health_care", label: "Health Care", better: "high" },
+  { key: "climate", label: "Climate", better: "high" },
+  { key: "local_purchasing_power", label: "Local Purchasing Power", better: "high" },
+  { key: "cost_of_living", label: "Cost of Living", better: "low" },
+  { key: "rent", label: "Rent", better: "low" },
+  { key: "cost_of_living_plus_rent", label: "Cost of Living Plus Rent", better: "low" },
+  { key: "groceries", label: "Groceries", better: "low" },
+  { key: "property_price_to_income_ratio", label: "Property Price to Income Ratio", better: "low" },
+  { key: "traffic_commute_time", label: "Traffic Commute Time", better: "low" },
+  { key: "pollution", label: "Pollution", better: "low" },
+];
+
 const els = {
   filtersCard: document.querySelector(".filters-card"),
   filtersBody: document.getElementById("filtersBody"),
@@ -53,6 +69,10 @@ const els = {
   costBreakdownWrapper: document.getElementById("costBreakdownWrapper"),
   costBreakdownHeadRow: document.getElementById("costBreakdownHeadRow"),
   costBreakdownBody: document.getElementById("costBreakdownBody"),
+  numbeoIndicesEmptyState: document.getElementById("numbeoIndicesEmptyState"),
+  numbeoIndicesWrapper: document.getElementById("numbeoIndicesWrapper"),
+  numbeoIndicesHeadRow: document.getElementById("numbeoIndicesHeadRow"),
+  numbeoIndicesBody: document.getElementById("numbeoIndicesBody"),
   climateTemperatureCanvas: document.getElementById("climateTemperatureChart"),
   climateSunshineCanvas: document.getElementById("climateSunshineChart"),
   climateDaylightCanvas: document.getElementById("climateDaylightChart"),
@@ -396,6 +416,7 @@ async function loadComparison() {
 
     renderCostBreakdownTable();
     renderClimateChart();
+    renderNumbeoIndicesTable();
     updateMetrics();
     collapseFilters();
   } catch (error) {
@@ -620,7 +641,7 @@ function renderCostBreakdownTable() {
           const maxValue =
             numericValues.length > 0 ? Math.max(...numericValues) : null;
           const shouldApplySecondary =
-            item.values.length - numericValues.length <= 1 &&
+            item.values.length - numericValues.length < 5 &&
             numericValues.length >= 3;
           const sortedUniqueValues = shouldApplySecondary
             ? Array.from(new Set(numericValues)).sort((a, b) => a - b)
@@ -749,6 +770,140 @@ function renderCostBreakdownTable() {
     });
 }
 
+function renderNumbeoIndicesTable() {
+  if (!state.comparisonData.length) {
+    els.numbeoIndicesEmptyState.classList.remove("hidden");
+    els.numbeoIndicesWrapper.classList.add("hidden");
+    return;
+  }
+
+  els.numbeoIndicesEmptyState.classList.add("hidden");
+  els.numbeoIndicesWrapper.classList.remove("hidden");
+
+  els.numbeoIndicesHeadRow.innerHTML = `
+    <th>Index</th>
+    ${state.comparisonData
+      .map((city) => {
+        const cityName = city.city ?? city.name ?? "City";
+        const country =
+          city.country ?? city.country_name ?? city.country_code ?? "";
+        const displayCountry = getDisplayCountryName(country);
+        return `<th><span class="table-city-name" title="${escapeHtml(String(cityName))}">${escapeHtml(cityName)}</span><br><span class="table-city-meta" title="${escapeHtml(String(country))}">${escapeHtml(String(displayCountry))}</span></th>`;
+      })
+      .join("")}
+  `;
+
+  els.numbeoIndicesBody.innerHTML = numbeoIndexRows
+    .map((row) => {
+      const isHigherBetter = row.better === "high";
+      const isActiveSort = state.indicesSort?.key === row.key;
+      const sortDirection = isActiveSort ? state.indicesSort.direction : null;
+      const numericEntries = state.comparisonData
+        .map((city, index) => ({
+          index,
+          numericValue: toNumber(city.numbeo_indices?.[row.key]),
+        }))
+        .filter((entry) => entry.numericValue != null);
+      const numericValues = numericEntries.map((entry) => entry.numericValue);
+      const minValue =
+        numericValues.length > 0 ? Math.min(...numericValues) : null;
+      const maxValue =
+        numericValues.length > 0 ? Math.max(...numericValues) : null;
+      const shouldApplySecondary =
+        state.comparisonData.length - numericValues.length < 5 &&
+        numericValues.length >= 3;
+      const sortedUniqueValues = shouldApplySecondary
+        ? Array.from(new Set(numericValues)).sort((a, b) => a - b)
+        : [];
+      const secondMinValue =
+        sortedUniqueValues.length >= 3 ? sortedUniqueValues[1] : null;
+      const secondMaxValue =
+        sortedUniqueValues.length >= 3
+          ? sortedUniqueValues[sortedUniqueValues.length - 2]
+          : null;
+
+      const cells = state.comparisonData
+        .map((city) => {
+          const value = toNumber(city.numbeo_indices?.[row.key]);
+          let cellClass = "indices-value";
+
+          if (
+            value != null &&
+            minValue != null &&
+            maxValue != null &&
+            minValue !== maxValue
+          ) {
+            if (isHigherBetter) {
+              if (value === minValue) {
+                cellClass += " cost-value-high";
+              } else if (value === maxValue) {
+                cellClass += " cost-value-low";
+              } else if (
+                shouldApplySecondary &&
+                secondMinValue != null &&
+                value === secondMinValue
+              ) {
+                cellClass += " cost-value-high-soft";
+              } else if (
+                shouldApplySecondary &&
+                secondMaxValue != null &&
+                value === secondMaxValue
+              ) {
+                cellClass += " cost-value-low-soft";
+              }
+            } else if (value === minValue) {
+              cellClass += " cost-value-low";
+            } else if (value === maxValue) {
+              cellClass += " cost-value-high";
+            } else if (
+              shouldApplySecondary &&
+              secondMinValue != null &&
+              value === secondMinValue
+            ) {
+              cellClass += " cost-value-low-soft";
+            } else if (
+              shouldApplySecondary &&
+              secondMaxValue != null &&
+              value === secondMaxValue
+            ) {
+              cellClass += " cost-value-high-soft";
+            }
+          }
+
+          return `<td class="${cellClass}">${escapeHtml(formatIndexValue(value))}</td>`;
+        })
+        .join("");
+
+      return `
+        <tr>
+          <td class="indices-item-name">
+            <button
+              class="cost-item-sort ${isActiveSort ? "is-active" : ""}"
+              type="button"
+              data-index-key="${escapeHtml(row.key)}"
+              data-index-sort-direction="${sortDirection ?? ""}"
+            >
+              <span>${escapeHtml(row.label)}</span>
+              <span class="cost-item-sort-indicator" aria-hidden="true">${sortDirection === "asc" ? "↑" : sortDirection === "desc" ? "↓" : ""}</span>
+            </button>
+          </td>
+          ${cells}
+        </tr>
+      `;
+    })
+    .join("");
+
+  els.numbeoIndicesBody
+    .querySelectorAll("[data-index-key]")
+    .forEach((button) => {
+      button.addEventListener("click", () => {
+        const key = button.dataset.indexKey;
+        if (!key) return;
+        applyIndicesSort(key);
+      });
+    });
+}
+
 function buildCostBreakdownDataset(cities) {
   if (!cities.length) return [];
 
@@ -841,6 +996,7 @@ function resetDashboard() {
   state.costBreakdownData = [];
   state.collapsedCostCategories.clear();
   state.breakdownSort = null;
+  state.indicesSort = null;
   state.climateHiddenCities.clear();
   state.climateHoveredCityKey = null;
 
@@ -852,6 +1008,7 @@ function resetDashboard() {
   renderSelectedCountries();
   renderSelectedCities();
   renderCostBreakdownTable();
+  renderNumbeoIndicesTable();
 
   els.chartEmptyState.classList.remove("hidden");
   els.climateChartsGrid.classList.add("hidden");
@@ -1214,6 +1371,11 @@ function formatTooltipValue(value, unit) {
   return `${raw} ${unit}`;
 }
 
+function formatIndexValue(value) {
+  if (value == null) return "—";
+  return String(value);
+}
+
 function getBaseDatasetColor(dataset) {
   return dataset._baseColor ?? "#2563eb";
 }
@@ -1273,9 +1435,28 @@ function applyBreakdownSort(param) {
 
   sortComparisonDataByCostParam(param, nextDirection);
   state.breakdownSort = { param, direction: nextDirection };
+  state.indicesSort = null;
   state.costBreakdownData = buildCostBreakdownDataset(state.comparisonData);
 
   renderCostBreakdownTable();
+  renderNumbeoIndicesTable();
+}
+
+function applyIndicesSort(key) {
+  if (!state.comparisonData.length) return;
+
+  const nextDirection =
+    state.indicesSort?.key === key && state.indicesSort.direction === "desc"
+      ? "asc"
+      : "desc";
+
+  sortComparisonDataByIndexKey(key, nextDirection);
+  state.indicesSort = { key, direction: nextDirection };
+  state.breakdownSort = null;
+  state.costBreakdownData = buildCostBreakdownDataset(state.comparisonData);
+
+  renderCostBreakdownTable();
+  renderNumbeoIndicesTable();
 }
 
 function applyLoadedComparisonSelection() {
@@ -1289,13 +1470,16 @@ function applyLoadedComparisonSelection() {
   if (state.comparisonData.length === 0) {
     state.costBreakdownData = [];
     state.breakdownSort = null;
+    state.indicesSort = null;
     renderCostBreakdownTable();
+    renderNumbeoIndicesTable();
     renderClimateChart();
     return;
   }
 
   state.costBreakdownData = buildCostBreakdownDataset(state.comparisonData);
   renderCostBreakdownTable();
+  renderNumbeoIndicesTable();
   renderClimateChart();
 }
 
@@ -1307,6 +1491,29 @@ function sortComparisonDataByCostParam(param, direction) {
       city,
       index,
       value: getCostParamValue(city, param),
+    }))
+    .sort((a, b) => {
+      const aMissing = a.value == null;
+      const bMissing = b.value == null;
+
+      if (aMissing && bMissing) return a.index - b.index;
+      if (aMissing) return 1;
+      if (bMissing) return -1;
+      if (a.value === b.value) return a.index - b.index;
+
+      return (a.value - b.value) * multiplier;
+    })
+    .map((entry) => entry.city);
+}
+
+function sortComparisonDataByIndexKey(key, direction) {
+  const multiplier = direction === "asc" ? 1 : -1;
+
+  state.comparisonData = state.comparisonData
+    .map((city, index) => ({
+      city,
+      index,
+      value: toNumber(city.numbeo_indices?.[key]),
     }))
     .sort((a, b) => {
       const aMissing = a.value == null;

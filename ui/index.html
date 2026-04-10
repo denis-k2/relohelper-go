@@ -219,6 +219,32 @@
                         </div>
                     </div>
                 </section>
+
+                <section class="card indices-card">
+                    <div class="card-header">
+                        <h2>Numbeo Indices by City</h2>
+                        <p>Selected city comparison based on Numbeo city indices.</p>
+                    </div>
+
+                    <div id="numbeoIndicesEmptyState" class="empty-state">
+                        Select cities and click <strong>Compare</strong> to
+                        load city indices.
+                    </div>
+
+                    <div
+                        id="numbeoIndicesWrapper"
+                        class="table-wrapper indices-table-wrapper hidden"
+                    >
+                        <table id="numbeoIndicesTable" class="indices-table">
+                            <thead>
+                                <tr id="numbeoIndicesHeadRow">
+                                    <th>Index</th>
+                                </tr>
+                            </thead>
+                            <tbody id="numbeoIndicesBody"></tbody>
+                        </table>
+                    </div>
+                </section>
             </main>
         </div>
     </body>
