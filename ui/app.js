@@ -5,10 +5,12 @@ const state = {
   selectedCountryCodes: new Set(),
   selectedCityIds: new Set(),
   comparisonData: [],
+  countryComparisonData: [],
   costBreakdownData: [],
   collapsedCostCategories: new Set(),
   breakdownSort: null,
   indicesSort: null,
+  countryIndicesSort: null,
   climateCharts: [],
   climateHiddenCities: new Set(),
   climateHoveredCityKey: null,
@@ -48,6 +50,11 @@ const numbeoIndexRows = [
   { key: "pollution", label: "Pollution", better: "low" },
 ];
 
+const countryNumbeoIndexRows = [
+  ...numbeoIndexRows,
+  { key: "avg_salary_usd", label: "Average Salary (USD)", better: "high", format: "currency" },
+];
+
 const els = {
   filtersCard: document.querySelector(".filters-card"),
   filtersBody: document.getElementById("filtersBody"),
@@ -73,6 +80,10 @@ const els = {
   numbeoIndicesWrapper: document.getElementById("numbeoIndicesWrapper"),
   numbeoIndicesHeadRow: document.getElementById("numbeoIndicesHeadRow"),
   numbeoIndicesBody: document.getElementById("numbeoIndicesBody"),
+  countryNumbeoIndicesEmptyState: document.getElementById("countryNumbeoIndicesEmptyState"),
+  countryNumbeoIndicesWrapper: document.getElementById("countryNumbeoIndicesWrapper"),
+  countryNumbeoIndicesHeadRow: document.getElementById("countryNumbeoIndicesHeadRow"),
+  countryNumbeoIndicesBody: document.getElementById("countryNumbeoIndicesBody"),
   climateTemperatureCanvas: document.getElementById("climateTemperatureChart"),
   climateSunshineCanvas: document.getElementById("climateSunshineChart"),
   climateDaylightCanvas: document.getElementById("climateDaylightChart"),
@@ -409,14 +420,18 @@ async function loadComparison() {
       : Array.isArray(data.data)
         ? data.data
         : [];
+    state.countryComparisonData = await loadCountryComparisonData(state.comparisonData);
     state.breakdownSort = null;
     state.climateHiddenCities.clear();
     state.climateHoveredCityKey = null;
+    state.indicesSort = null;
+    state.countryIndicesSort = null;
     state.costBreakdownData = buildCostBreakdownDataset(state.comparisonData);
 
     renderCostBreakdownTable();
     renderClimateChart();
     renderNumbeoIndicesTable();
+    renderCountryNumbeoIndicesTable();
     updateMetrics();
     collapseFilters();
   } catch (error) {
@@ -771,37 +786,97 @@ function renderCostBreakdownTable() {
 }
 
 function renderNumbeoIndicesTable() {
-  if (!state.comparisonData.length) {
-    els.numbeoIndicesEmptyState.classList.remove("hidden");
-    els.numbeoIndicesWrapper.classList.add("hidden");
+  renderNumbeoIndicesTableSection({
+    data: state.comparisonData,
+    emptyStateEl: els.numbeoIndicesEmptyState,
+    wrapperEl: els.numbeoIndicesWrapper,
+    headRowEl: els.numbeoIndicesHeadRow,
+    bodyEl: els.numbeoIndicesBody,
+    headLabel: "Index",
+    rows: numbeoIndexRows,
+    sortState: state.indicesSort,
+    keyDataAttr: "data-index-key",
+    applySort: applyIndicesSort,
+    getColumnLabel: (city) => city.city ?? city.name ?? "City",
+    getColumnMeta: (city) =>
+      getDisplayCountryName(
+        city.country ?? city.country_name ?? city.country_code ?? "",
+      ),
+    getColumnMetaTitle: (city) =>
+      city.country ?? city.country_name ?? city.country_code ?? "",
+    getValue: (city, key) => toNumber(city.numbeo_indices?.[key]),
+  });
+}
+
+function renderCountryNumbeoIndicesTable() {
+  renderNumbeoIndicesTableSection({
+    data: state.countryComparisonData,
+    emptyStateEl: els.countryNumbeoIndicesEmptyState,
+    wrapperEl: els.countryNumbeoIndicesWrapper,
+    headRowEl: els.countryNumbeoIndicesHeadRow,
+    bodyEl: els.countryNumbeoIndicesBody,
+    headLabel: "Index",
+    rows: countryNumbeoIndexRows,
+    sortState: state.countryIndicesSort,
+    keyDataAttr: "data-country-index-key",
+    applySort: applyCountryIndicesSort,
+    getColumnLabel: (country) =>
+      country.country ?? country.country_name ?? country.country_code ?? "Country",
+    getColumnMeta: () => "",
+    getColumnMetaTitle: () => "",
+    getValue: (country, key) => toNumber(country.numbeo_indices?.[key]),
+  });
+}
+
+function renderNumbeoIndicesTableSection({
+  data,
+  emptyStateEl,
+  wrapperEl,
+  headRowEl,
+  bodyEl,
+  headLabel,
+  rows,
+  sortState,
+  keyDataAttr,
+  applySort,
+  getColumnLabel,
+  getColumnMeta,
+  getColumnMetaTitle,
+  getValue,
+}) {
+  if (!data.length) {
+    emptyStateEl.classList.remove("hidden");
+    wrapperEl.classList.add("hidden");
     return;
   }
 
-  els.numbeoIndicesEmptyState.classList.add("hidden");
-  els.numbeoIndicesWrapper.classList.remove("hidden");
+  emptyStateEl.classList.add("hidden");
+  wrapperEl.classList.remove("hidden");
 
-  els.numbeoIndicesHeadRow.innerHTML = `
-    <th>Index</th>
-    ${state.comparisonData
-      .map((city) => {
-        const cityName = city.city ?? city.name ?? "City";
-        const country =
-          city.country ?? city.country_name ?? city.country_code ?? "";
-        const displayCountry = getDisplayCountryName(country);
-        return `<th><span class="table-city-name" title="${escapeHtml(String(cityName))}">${escapeHtml(cityName)}</span><br><span class="table-city-meta" title="${escapeHtml(String(country))}">${escapeHtml(String(displayCountry))}</span></th>`;
+  headRowEl.innerHTML = `
+    <th>${escapeHtml(headLabel)}</th>
+    ${data
+      .map((item) => {
+        const label = getColumnLabel(item);
+        const meta = getColumnMeta(item);
+        const metaTitle = getColumnMetaTitle(item);
+        const metaHtml = meta
+          ? `<br><span class="table-city-meta" title="${escapeHtml(String(metaTitle))}">${escapeHtml(String(meta))}</span>`
+          : "";
+        return `<th><span class="table-city-name" title="${escapeHtml(String(label))}">${escapeHtml(String(label))}</span>${metaHtml}</th>`;
       })
       .join("")}
   `;
 
-  els.numbeoIndicesBody.innerHTML = numbeoIndexRows
+  bodyEl.innerHTML = rows
     .map((row) => {
       const isHigherBetter = row.better === "high";
-      const isActiveSort = state.indicesSort?.key === row.key;
-      const sortDirection = isActiveSort ? state.indicesSort.direction : null;
-      const numericEntries = state.comparisonData
-        .map((city, index) => ({
+      const isActiveSort = sortState?.key === row.key;
+      const sortDirection = isActiveSort ? sortState.direction : null;
+      const numericEntries = data
+        .map((item, index) => ({
           index,
-          numericValue: toNumber(city.numbeo_indices?.[row.key]),
+          numericValue: getValue(item, row.key),
         }))
         .filter((entry) => entry.numericValue != null);
       const numericValues = numericEntries.map((entry) => entry.numericValue);
@@ -810,7 +885,7 @@ function renderNumbeoIndicesTable() {
       const maxValue =
         numericValues.length > 0 ? Math.max(...numericValues) : null;
       const shouldApplySecondary =
-        state.comparisonData.length - numericValues.length < 5 &&
+        data.length - numericValues.length < 5 &&
         numericValues.length >= 3;
       const sortedUniqueValues = shouldApplySecondary
         ? Array.from(new Set(numericValues)).sort((a, b) => a - b)
@@ -822,9 +897,9 @@ function renderNumbeoIndicesTable() {
           ? sortedUniqueValues[sortedUniqueValues.length - 2]
           : null;
 
-      const cells = state.comparisonData
-        .map((city) => {
-          const value = toNumber(city.numbeo_indices?.[row.key]);
+      const cells = data
+        .map((item) => {
+          const value = getValue(item, row.key);
           let cellClass = "indices-value";
 
           if (
@@ -870,7 +945,7 @@ function renderNumbeoIndicesTable() {
             }
           }
 
-          return `<td class="${cellClass}">${escapeHtml(formatIndexValue(value))}</td>`;
+          return `<td class="${cellClass}">${escapeHtml(formatIndexValue(value, row))}</td>`;
         })
         .join("");
 
@@ -880,7 +955,7 @@ function renderNumbeoIndicesTable() {
             <button
               class="cost-item-sort ${isActiveSort ? "is-active" : ""}"
               type="button"
-              data-index-key="${escapeHtml(row.key)}"
+              ${keyDataAttr}="${escapeHtml(row.key)}"
               data-index-sort-direction="${sortDirection ?? ""}"
             >
               <span>${escapeHtml(row.label)}</span>
@@ -893,15 +968,13 @@ function renderNumbeoIndicesTable() {
     })
     .join("");
 
-  els.numbeoIndicesBody
-    .querySelectorAll("[data-index-key]")
-    .forEach((button) => {
-      button.addEventListener("click", () => {
-        const key = button.dataset.indexKey;
-        if (!key) return;
-        applyIndicesSort(key);
-      });
+  bodyEl.querySelectorAll(`[${keyDataAttr}]`).forEach((button) => {
+    button.addEventListener("click", () => {
+      const key = button.getAttribute(keyDataAttr);
+      if (!key) return;
+      applySort(key);
     });
+  });
 }
 
 function buildCostBreakdownDataset(cities) {
@@ -993,10 +1066,12 @@ function resetDashboard() {
   state.selectedCityIds.clear();
   state.cities = [];
   state.comparisonData = [];
+  state.countryComparisonData = [];
   state.costBreakdownData = [];
   state.collapsedCostCategories.clear();
   state.breakdownSort = null;
   state.indicesSort = null;
+  state.countryIndicesSort = null;
   state.climateHiddenCities.clear();
   state.climateHoveredCityKey = null;
 
@@ -1009,6 +1084,7 @@ function resetDashboard() {
   renderSelectedCities();
   renderCostBreakdownTable();
   renderNumbeoIndicesTable();
+  renderCountryNumbeoIndicesTable();
 
   els.chartEmptyState.classList.remove("hidden");
   els.climateChartsGrid.classList.add("hidden");
@@ -1371,8 +1447,16 @@ function formatTooltipValue(value, unit) {
   return `${raw} ${unit}`;
 }
 
-function formatIndexValue(value) {
+function formatIndexValue(value, row = null) {
   if (value == null) return "—";
+  if (row?.format === "currency") {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: value >= 100 ? 0 : 2,
+      minimumFractionDigits: value >= 100 ? 0 : 2,
+    }).format(value);
+  }
   return String(value);
 }
 
@@ -1459,6 +1543,21 @@ function applyIndicesSort(key) {
   renderNumbeoIndicesTable();
 }
 
+function applyCountryIndicesSort(key) {
+  if (!state.countryComparisonData.length) return;
+
+  const nextDirection =
+    state.countryIndicesSort?.key === key &&
+    state.countryIndicesSort.direction === "desc"
+      ? "asc"
+      : "desc";
+
+  sortCountryComparisonDataByIndexKey(key, nextDirection);
+  state.countryIndicesSort = { key, direction: nextDirection };
+
+  renderCountryNumbeoIndicesTable();
+}
+
 function applyLoadedComparisonSelection() {
   if (!state.comparisonData.length) return;
 
@@ -1468,18 +1567,23 @@ function applyLoadedComparisonSelection() {
   );
 
   if (state.comparisonData.length === 0) {
+    state.countryComparisonData = [];
     state.costBreakdownData = [];
     state.breakdownSort = null;
     state.indicesSort = null;
+    state.countryIndicesSort = null;
     renderCostBreakdownTable();
     renderNumbeoIndicesTable();
+    renderCountryNumbeoIndicesTable();
     renderClimateChart();
     return;
   }
 
+  syncCountryComparisonDataToSelectedCities();
   state.costBreakdownData = buildCostBreakdownDataset(state.comparisonData);
   renderCostBreakdownTable();
   renderNumbeoIndicesTable();
+  renderCountryNumbeoIndicesTable();
   renderClimateChart();
 }
 
@@ -1529,12 +1633,100 @@ function sortComparisonDataByIndexKey(key, direction) {
     .map((entry) => entry.city);
 }
 
+function sortCountryComparisonDataByIndexKey(key, direction) {
+  const multiplier = direction === "asc" ? 1 : -1;
+
+  state.countryComparisonData = state.countryComparisonData
+    .map((country, index) => ({
+      country,
+      index,
+      value: toNumber(country.numbeo_indices?.[key]),
+    }))
+    .sort((a, b) => {
+      const aMissing = a.value == null;
+      const bMissing = b.value == null;
+
+      if (aMissing && bMissing) return a.index - b.index;
+      if (aMissing) return 1;
+      if (bMissing) return -1;
+      if (a.value === b.value) return a.index - b.index;
+
+      return (a.value - b.value) * multiplier;
+    })
+    .map((entry) => entry.country);
+}
+
 function getCostParamValue(city, param) {
   const prices = city.numbeo_cost?.prices;
   if (!Array.isArray(prices)) return null;
 
   const entry = prices.find((price) => price?.param === param);
   return toNumber(entry?.cost);
+}
+
+async function loadCountryComparisonData(cities) {
+  const countryCodes = Array.from(
+    new Set(
+      cities
+        .map((city) => city.country_code)
+        .filter(Boolean),
+    ),
+  );
+
+  if (countryCodes.length === 0) return [];
+
+  const qs = new URLSearchParams();
+  qs.set("country_codes", countryCodes.join(","));
+  qs.set("include", "numbeo_indices,legatum_indices");
+
+  const res = await fetch(`/countries?${qs.toString()}`);
+  if (!res.ok) {
+    throw new Error(`Failed to load countries: ${res.status}`);
+  }
+
+  const data = await res.json();
+  const countries = Array.isArray(data.countries)
+    ? data.countries
+    : Array.isArray(data.data)
+      ? data.data
+      : [];
+
+  return sortCountriesBySelectedCityCountryOrder(countries, countryCodes);
+}
+
+function syncCountryComparisonDataToSelectedCities() {
+  const selectedCountryCodes = Array.from(
+    new Set(
+      state.comparisonData
+        .map((city) => city.country_code)
+        .filter(Boolean),
+    ),
+  );
+  const selectedCountryCodeSet = new Set(selectedCountryCodes);
+
+  state.countryComparisonData = sortCountriesBySelectedCityCountryOrder(
+    state.countryComparisonData.filter((country) =>
+      selectedCountryCodeSet.has(country.country_code),
+    ),
+    selectedCountryCodes,
+  );
+}
+
+function sortCountriesBySelectedCityCountryOrder(countries, orderedCountryCodes) {
+  const positionByCode = new Map(
+    orderedCountryCodes.map((code, index) => [code, index]),
+  );
+
+  return [...countries].sort((a, b) => {
+    const aPos = positionByCode.get(a.country_code);
+    const bPos = positionByCode.get(b.country_code);
+    if (aPos != null && bPos != null) return aPos - bPos;
+    if (aPos != null) return -1;
+    if (bPos != null) return 1;
+    return String(a.country ?? a.country_code ?? "").localeCompare(
+      String(b.country ?? b.country_code ?? ""),
+    );
+  });
 }
 
 function getDisplayCountryName(country) {

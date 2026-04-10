@@ -245,6 +245,32 @@
                         </table>
                     </div>
                 </section>
+
+                <section class="card indices-card">
+                    <div class="card-header">
+                        <h2>Numbeo Indices by Country</h2>
+                        <p>Country comparison for the countries of the selected cities.</p>
+                    </div>
+
+                    <div id="countryNumbeoIndicesEmptyState" class="empty-state">
+                        Select cities and click <strong>Compare</strong> to
+                        load country indices.
+                    </div>
+
+                    <div
+                        id="countryNumbeoIndicesWrapper"
+                        class="table-wrapper indices-table-wrapper hidden"
+                    >
+                        <table id="countryNumbeoIndicesTable" class="indices-table">
+                            <thead>
+                                <tr id="countryNumbeoIndicesHeadRow">
+                                    <th>Index</th>
+                                </tr>
+                            </thead>
+                            <tbody id="countryNumbeoIndicesBody"></tbody>
+                        </table>
+                    </div>
+                </section>
             </main>
         </div>
     </body>
