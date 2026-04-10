@@ -435,7 +435,7 @@ h1 {
 
 .cost-breakdown-table thead th {
     text-align: right;
-    width: 138px;
+    width: 124px;
 }
 
 .cost-breakdown-table thead th:first-child {
@@ -449,9 +449,9 @@ h1 {
     font-size: 14px;
     font-weight: 600;
     color: var(--text);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.2;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .table-city-meta {
