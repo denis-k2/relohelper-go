@@ -12,6 +12,7 @@ const state = {
   indicesSort: null,
   countryIndicesSort: null,
   legatumIndicesSort: null,
+  legatumMetricMode: "score",
   climateCharts: [],
   climateHiddenCities: new Set(),
   climateHoveredCityKey: null,
@@ -104,6 +105,8 @@ const els = {
   legatumIndicesWrapper: document.getElementById("legatumIndicesWrapper"),
   legatumIndicesHeadRow: document.getElementById("legatumIndicesHeadRow"),
   legatumIndicesBody: document.getElementById("legatumIndicesBody"),
+  legatumScoreToggle: document.getElementById("legatumScoreToggle"),
+  legatumRankToggle: document.getElementById("legatumRankToggle"),
   climateTemperatureCanvas: document.getElementById("climateTemperatureChart"),
   climateSunshineCanvas: document.getElementById("climateSunshineChart"),
   climateDaylightCanvas: document.getElementById("climateDaylightChart"),
@@ -124,6 +127,12 @@ function bindEvents() {
   els.compareBtn.addEventListener("click", loadComparison);
   els.resetBtn.addEventListener("click", resetDashboard);
   els.editFiltersBtn.addEventListener("click", expandFilters);
+  els.legatumScoreToggle.addEventListener("click", () =>
+    setLegatumMetricMode("score"),
+  );
+  els.legatumRankToggle.addEventListener("click", () =>
+    setLegatumMetricMode("rank"),
+  );
 }
 
 async function loadInitialData() {
@@ -852,6 +861,7 @@ function renderCountryNumbeoIndicesTable() {
 }
 
 function renderLegatumIndicesTable() {
+  const isRankMode = state.legatumMetricMode === "rank";
   renderNumbeoIndicesTableSection({
     data: state.countryComparisonData,
     emptyStateEl: els.legatumIndicesEmptyState,
@@ -859,7 +869,10 @@ function renderLegatumIndicesTable() {
     headRowEl: els.legatumIndicesHeadRow,
     bodyEl: els.legatumIndicesBody,
     headLabel: "Index",
-    rows: legatumIndexRows,
+    rows: legatumIndexRows.map((row) => ({
+      ...row,
+      better: isRankMode ? "low" : "high",
+    })),
     sortState: state.legatumIndicesSort,
     keyDataAttr: "data-legatum-index-key",
     applySort: applyLegatumIndicesSort,
@@ -869,8 +882,14 @@ function renderLegatumIndicesTable() {
       ),
     getColumnMeta: () => "",
     getColumnMetaTitle: () => "",
-    getValue: (country, key) => toNumber(country.legatum_indices?.[key]?.score_2023),
+    getValue: (country, key) =>
+      toNumber(
+        country.legatum_indices?.[key]?.[
+          isRankMode ? "rank_2023" : "score_2023"
+        ],
+      ),
   });
+  syncLegatumToggleButtons();
 }
 
 function renderNumbeoIndicesTableSection({
@@ -1118,6 +1137,7 @@ function resetDashboard() {
   state.indicesSort = null;
   state.countryIndicesSort = null;
   state.legatumIndicesSort = null;
+  state.legatumMetricMode = "score";
   state.climateHiddenCities.clear();
   state.climateHoveredCityKey = null;
 
@@ -1624,6 +1644,15 @@ function applyLegatumIndicesSort(key) {
   renderLegatumIndicesTable();
 }
 
+function setLegatumMetricMode(mode) {
+  if (mode !== "score" && mode !== "rank") return;
+  if (state.legatumMetricMode === mode) return;
+
+  state.legatumMetricMode = mode;
+  state.legatumIndicesSort = null;
+  renderLegatumIndicesTable();
+}
+
 function applyLoadedComparisonSelection() {
   if (!state.comparisonData.length) return;
 
@@ -1727,12 +1756,14 @@ function sortCountryComparisonDataByIndexKey(key, direction) {
 
 function sortCountryComparisonDataByLegatumKey(key, direction) {
   const multiplier = direction === "asc" ? 1 : -1;
+  const metricKey =
+    state.legatumMetricMode === "rank" ? "rank_2023" : "score_2023";
 
   state.countryComparisonData = state.countryComparisonData
     .map((country, index) => ({
       country,
       index,
-      value: toNumber(country.legatum_indices?.[key]?.score_2023),
+      value: toNumber(country.legatum_indices?.[key]?.[metricKey]),
     }))
     .sort((a, b) => {
       const aMissing = a.value == null;
@@ -1746,6 +1777,12 @@ function sortCountryComparisonDataByLegatumKey(key, direction) {
       return (a.value - b.value) * multiplier;
     })
     .map((entry) => entry.country);
+}
+
+function syncLegatumToggleButtons() {
+  const isScoreMode = state.legatumMetricMode === "score";
+  els.legatumScoreToggle.classList.toggle("is-active", isScoreMode);
+  els.legatumRankToggle.classList.toggle("is-active", !isScoreMode);
 }
 
 function getCostParamValue(city, param) {

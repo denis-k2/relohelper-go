@@ -273,9 +273,27 @@
                 </section>
 
                 <section class="card indices-card">
-                    <div class="card-header">
-                        <h2>The Legatum Prosperity Index</h2>
-                        <p>Selected country comparison based on 2023 Legatum scores.</p>
+                    <div class="card-header indices-header-with-toggle">
+                        <div>
+                            <h2>The Legatum Prosperity Index</h2>
+                            <p>Compare selected countries by Legatum scores or ranks.</p>
+                        </div>
+                        <div class="table-mode-toggle" role="group" aria-label="Legatum metric mode">
+                            <button
+                                id="legatumScoreToggle"
+                                class="table-mode-toggle-btn is-active"
+                                type="button"
+                            >
+                                Score
+                            </button>
+                            <button
+                                id="legatumRankToggle"
+                                class="table-mode-toggle-btn"
+                                type="button"
+                            >
+                                Rank
+                            </button>
+                        </div>
                     </div>
 
                     <div id="legatumIndicesEmptyState" class="empty-state">
