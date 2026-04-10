@@ -680,12 +680,123 @@ tbody tr:hover {
 
 .chart-wrapper {
     margin-top: 8px;
-    min-height: 360px;
 }
 
-canvas {
+.climate-charts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+}
+
+.climate-chart-card {
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #fbfcff;
+    padding: 16px;
+}
+
+.climate-chart-card-wide {
+    grid-column: 1 / -1;
+}
+
+.climate-chart-head {
+    margin-bottom: 12px;
+}
+
+.climate-chart-head h3 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.climate-chart-head p {
+    margin: 6px 0 0 0;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.climate-chart-wrapper {
+    position: relative;
+    height: 260px;
+}
+
+.climate-chart-wrapper-wide {
+    height: 396px;
+}
+
+.climate-chart-wrapper canvas {
     width: 100% !important;
-    height: 360px !important;
+    height: 100% !important;
+}
+
+.chart-tooltip {
+    position: absolute;
+    z-index: 20;
+    min-width: 180px;
+    max-width: 260px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.94);
+    color: #e2e8f0;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.24);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(4px);
+    transition:
+        opacity 0.12s ease,
+        transform 0.12s ease;
+}
+
+.chart-tooltip.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.chart-tooltip-row {
+    display: grid;
+    grid-template-columns: 14px minmax(0, 1fr);
+    gap: 10px;
+    align-items: start;
+}
+
+.chart-tooltip-swatch {
+    display: block;
+    width: 14px;
+    height: 14px;
+    margin-top: 3px;
+    border-radius: 4px;
+}
+
+.chart-tooltip-city {
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: #f8fafc;
+}
+
+.chart-tooltip-text {
+    margin-top: 6px;
+    font-size: 13px;
+    line-height: 1.35;
+    color: #cbd5e1;
+}
+
+.chart-tooltip-metric {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    gap: 8px;
+    margin-top: 4px;
+    font-size: 13px;
+    line-height: 1.35;
+    padding-left: 8px;
+}
+
+.chart-tooltip-key {
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+.chart-tooltip-value {
+    color: #e2e8f0;
 }
 
 .hidden {
@@ -701,7 +812,7 @@ canvas {
 @media (max-width: 1100px) {
     .dashboard-grid,
     .filters-grid,
-    .metric-grid {
+    .climate-charts-grid {
         grid-template-columns: 1fr;
     }
 
@@ -717,5 +828,9 @@ canvas {
     .filters-header {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    .climate-chart-card-wide {
+        grid-column: auto;
     }
 }

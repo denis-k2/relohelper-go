@@ -144,17 +144,79 @@
 
                 <section class="card chart-card">
                     <div class="card-header">
-                        <h2>Climate chart</h2>
-                        <p>Average monthly high temperature comparison.</p>
+                        <h2>Climate</h2>
+                        <p>Monthly climate comparison across selected cities.</p>
                     </div>
 
                     <div id="chartEmptyState" class="empty-state">
-                        Climate chart will appear after comparison data is
+                        Climate charts will appear after comparison data is
                         loaded.
                     </div>
 
-                    <div class="chart-wrapper">
-                        <canvas id="climateChart"></canvas>
+                    <div id="climateChartsGrid" class="climate-charts-grid hidden">
+                        <div class="climate-chart-card climate-chart-card-wide">
+                            <div class="climate-chart-head">
+                                <h3>Temperature</h3>
+                                <p>High temperature uses solid lines, low temperature uses dashed lines.</p>
+                            </div>
+                            <div class="climate-chart-wrapper climate-chart-wrapper-wide">
+                                <canvas id="climateTemperatureChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="climate-chart-card">
+                            <div class="climate-chart-head">
+                                <h3>Sunshine Hours</h3>
+                            </div>
+                            <div class="climate-chart-wrapper">
+                                <canvas id="climateSunshineChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="climate-chart-card">
+                            <div class="climate-chart-head">
+                                <h3>Daylight Hours</h3>
+                            </div>
+                            <div class="climate-chart-wrapper">
+                                <canvas id="climateDaylightChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="climate-chart-card">
+                            <div class="climate-chart-head">
+                                <h3>Humidity</h3>
+                            </div>
+                            <div class="climate-chart-wrapper">
+                                <canvas id="climateHumidityChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="climate-chart-card">
+                            <div class="climate-chart-head">
+                                <h3>Rainfall</h3>
+                            </div>
+                            <div class="climate-chart-wrapper">
+                                <canvas id="climateRainfallChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="climate-chart-card">
+                            <div class="climate-chart-head">
+                                <h3>Wind</h3>
+                            </div>
+                            <div class="climate-chart-wrapper">
+                                <canvas id="climateWindChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="climate-chart-card">
+                            <div class="climate-chart-head">
+                                <h3>UV Index</h3>
+                            </div>
+                            <div class="climate-chart-wrapper">
+                                <canvas id="climateUVIndexChart"></canvas>
+                            </div>
+                        </div>
                     </div>
                 </section>
             </main>
