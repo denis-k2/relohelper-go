@@ -299,6 +299,7 @@ function renderCities() {
     .map((city) => {
       const id = String(city.geoname_id ?? city.city_id ?? city.id ?? "");
       const cityName = city.city ?? city.name ?? id;
+      const cityDisplayName = formatFilterCityName(city);
       const countryName =
         city.country ?? city.country_name ?? city.country_code ?? "";
       const isChecked = state.selectedCityIds.has(id);
@@ -309,7 +310,7 @@ function renderCities() {
         <label class="selection-item">
           <input type="checkbox" data-city-id="${escapeHtml(id)}" ${checked} ${disabled} />
           <div class="selection-item-main">
-            <span class="selection-title">${escapeHtml(cityName)}</span>
+            <span class="selection-title">${cityDisplayName}</span>
             <span class="selection-subtitle">${escapeHtml(countryName)}</span>
           </div>
         </label>
@@ -2029,6 +2030,23 @@ function sortCountriesBySelectedCityCountryOrder(countries, orderedCountryCodes)
 function getDisplayCountryName(country) {
   const raw = String(country ?? "");
   return countryDisplayNames[raw] ?? raw;
+}
+
+function formatFilterCityName(city) {
+  const cityName = city.city ?? city.name ?? "";
+  const countryCode = city.country_code ?? "";
+  const stateCode = city.state_code ?? "";
+
+  if (countryCode !== "USA" || !stateCode.startsWith("US-")) {
+    return escapeHtml(cityName);
+  }
+
+  const shortStateCode = stateCode.slice(3);
+  if (!shortStateCode) {
+    return escapeHtml(cityName);
+  }
+
+  return `${escapeHtml(cityName)} <span class="selection-title-meta">${escapeHtml(shortStateCode)}</span>`;
 }
 
 function escapeHtml(value) {
