@@ -11,6 +11,7 @@ const state = {
   breakdownSort: null,
   indicesSort: null,
   countryIndicesSort: null,
+  legatumIndicesSort: null,
   climateCharts: [],
   climateHiddenCities: new Set(),
   climateHoveredCityKey: null,
@@ -55,6 +56,21 @@ const countryNumbeoIndexRows = [
   { key: "avg_salary_usd", label: "Average Salary (USD)", better: "high", format: "currency" },
 ];
 
+const legatumIndexRows = [
+  { key: "safety_and_security", label: "Safety and Security", better: "high" },
+  { key: "personal_freedom", label: "Personal Freedom", better: "high" },
+  { key: "governance", label: "Governance", better: "high" },
+  { key: "social_capital", label: "Social Capital", better: "high" },
+  { key: "investment_invironment", label: "Investment Invironment", better: "high" },
+  { key: "enterprise_conditions", label: "Enterprise Conditions", better: "high" },
+  { key: "infrastructure_and_market_access", label: "Infrastructure and Market Access", better: "high" },
+  { key: "economic_quality", label: "Economic Quality", better: "high" },
+  { key: "living_conditions", label: "Living Conditions", better: "high" },
+  { key: "health", label: "Health", better: "high" },
+  { key: "education", label: "Education", better: "high" },
+  { key: "natural_environment", label: "Natural Environment", better: "high" },
+];
+
 const els = {
   filtersCard: document.querySelector(".filters-card"),
   filtersBody: document.getElementById("filtersBody"),
@@ -84,6 +100,10 @@ const els = {
   countryNumbeoIndicesWrapper: document.getElementById("countryNumbeoIndicesWrapper"),
   countryNumbeoIndicesHeadRow: document.getElementById("countryNumbeoIndicesHeadRow"),
   countryNumbeoIndicesBody: document.getElementById("countryNumbeoIndicesBody"),
+  legatumIndicesEmptyState: document.getElementById("legatumIndicesEmptyState"),
+  legatumIndicesWrapper: document.getElementById("legatumIndicesWrapper"),
+  legatumIndicesHeadRow: document.getElementById("legatumIndicesHeadRow"),
+  legatumIndicesBody: document.getElementById("legatumIndicesBody"),
   climateTemperatureCanvas: document.getElementById("climateTemperatureChart"),
   climateSunshineCanvas: document.getElementById("climateSunshineChart"),
   climateDaylightCanvas: document.getElementById("climateDaylightChart"),
@@ -432,6 +452,7 @@ async function loadComparison() {
     renderClimateChart();
     renderNumbeoIndicesTable();
     renderCountryNumbeoIndicesTable();
+    renderLegatumIndicesTable();
     updateMetrics();
     collapseFilters();
   } catch (error) {
@@ -821,10 +842,34 @@ function renderCountryNumbeoIndicesTable() {
     keyDataAttr: "data-country-index-key",
     applySort: applyCountryIndicesSort,
     getColumnLabel: (country) =>
-      country.country ?? country.country_name ?? country.country_code ?? "Country",
+      getDisplayCountryName(
+        country.country ?? country.country_name ?? country.country_code ?? "Country",
+      ),
     getColumnMeta: () => "",
     getColumnMetaTitle: () => "",
     getValue: (country, key) => toNumber(country.numbeo_indices?.[key]),
+  });
+}
+
+function renderLegatumIndicesTable() {
+  renderNumbeoIndicesTableSection({
+    data: state.countryComparisonData,
+    emptyStateEl: els.legatumIndicesEmptyState,
+    wrapperEl: els.legatumIndicesWrapper,
+    headRowEl: els.legatumIndicesHeadRow,
+    bodyEl: els.legatumIndicesBody,
+    headLabel: "Index",
+    rows: legatumIndexRows,
+    sortState: state.legatumIndicesSort,
+    keyDataAttr: "data-legatum-index-key",
+    applySort: applyLegatumIndicesSort,
+    getColumnLabel: (country) =>
+      getDisplayCountryName(
+        country.country ?? country.country_name ?? country.country_code ?? "Country",
+      ),
+    getColumnMeta: () => "",
+    getColumnMetaTitle: () => "",
+    getValue: (country, key) => toNumber(country.legatum_indices?.[key]?.score_2023),
   });
 }
 
@@ -1072,6 +1117,7 @@ function resetDashboard() {
   state.breakdownSort = null;
   state.indicesSort = null;
   state.countryIndicesSort = null;
+  state.legatumIndicesSort = null;
   state.climateHiddenCities.clear();
   state.climateHoveredCityKey = null;
 
@@ -1085,6 +1131,7 @@ function resetDashboard() {
   renderCostBreakdownTable();
   renderNumbeoIndicesTable();
   renderCountryNumbeoIndicesTable();
+  renderLegatumIndicesTable();
 
   els.chartEmptyState.classList.remove("hidden");
   els.climateChartsGrid.classList.add("hidden");
@@ -1554,8 +1601,27 @@ function applyCountryIndicesSort(key) {
 
   sortCountryComparisonDataByIndexKey(key, nextDirection);
   state.countryIndicesSort = { key, direction: nextDirection };
+  state.legatumIndicesSort = null;
 
   renderCountryNumbeoIndicesTable();
+  renderLegatumIndicesTable();
+}
+
+function applyLegatumIndicesSort(key) {
+  if (!state.countryComparisonData.length) return;
+
+  const nextDirection =
+    state.legatumIndicesSort?.key === key &&
+    state.legatumIndicesSort.direction === "desc"
+      ? "asc"
+      : "desc";
+
+  sortCountryComparisonDataByLegatumKey(key, nextDirection);
+  state.legatumIndicesSort = { key, direction: nextDirection };
+  state.countryIndicesSort = null;
+
+  renderCountryNumbeoIndicesTable();
+  renderLegatumIndicesTable();
 }
 
 function applyLoadedComparisonSelection() {
@@ -1572,9 +1638,11 @@ function applyLoadedComparisonSelection() {
     state.breakdownSort = null;
     state.indicesSort = null;
     state.countryIndicesSort = null;
+    state.legatumIndicesSort = null;
     renderCostBreakdownTable();
     renderNumbeoIndicesTable();
     renderCountryNumbeoIndicesTable();
+    renderLegatumIndicesTable();
     renderClimateChart();
     return;
   }
@@ -1584,6 +1652,7 @@ function applyLoadedComparisonSelection() {
   renderCostBreakdownTable();
   renderNumbeoIndicesTable();
   renderCountryNumbeoIndicesTable();
+  renderLegatumIndicesTable();
   renderClimateChart();
 }
 
@@ -1641,6 +1710,29 @@ function sortCountryComparisonDataByIndexKey(key, direction) {
       country,
       index,
       value: toNumber(country.numbeo_indices?.[key]),
+    }))
+    .sort((a, b) => {
+      const aMissing = a.value == null;
+      const bMissing = b.value == null;
+
+      if (aMissing && bMissing) return a.index - b.index;
+      if (aMissing) return 1;
+      if (bMissing) return -1;
+      if (a.value === b.value) return a.index - b.index;
+
+      return (a.value - b.value) * multiplier;
+    })
+    .map((entry) => entry.country);
+}
+
+function sortCountryComparisonDataByLegatumKey(key, direction) {
+  const multiplier = direction === "asc" ? 1 : -1;
+
+  state.countryComparisonData = state.countryComparisonData
+    .map((country, index) => ({
+      country,
+      index,
+      value: toNumber(country.legatum_indices?.[key]?.score_2023),
     }))
     .sort((a, b) => {
       const aMissing = a.value == null;
