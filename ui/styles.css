@@ -53,7 +53,7 @@ code {
 .app-shell {
     max-width: 1600px;
     margin: 0 auto;
-    padding: 24px;
+    padding: 24px 24px 48px;
 }
 
 .topbar {
