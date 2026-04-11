@@ -5,7 +5,7 @@ import (
 	"io/fs"
 )
 
-//go:embed index.html app.js styles.css favicon.svg
+//go:embed index.html app.js helpers.js tooltips.js climate.js styles.css favicon.svg
 var embeddedFiles embed.FS
 
 func ReadFile(name string) ([]byte, error) {

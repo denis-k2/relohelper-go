@@ -18,25 +18,6 @@ const state = {
   climateHoveredCityKey: null,
 };
 
-const countryDisplayNames = {
-  "Bolivia, Plurinational State of": "Bolivia",
-  "Bosnia and Herzegovina": "Bosnia & Herzegovina",
-  "Dominican Republic": "Dominican Rep.",
-  "Iran, Islamic Republic of": "Iran",
-  "Korea, Republic of": "South Korea",
-  "Moldova, Republic of": "Moldova",
-  "Netherlands, Kingdom of the": "Netherlands",
-  "North Macedonia": "N. Macedonia",
-  "Russian Federation": "Russia",
-  "Syrian Arab Republic": "Syria",
-  "Taiwan, Province of China": "Taiwan",
-  "Tanzania, United Republic of": "Tanzania",
-  "United Arab Emirates": "UAE",
-  "United Kingdom of Great Britain and Northern Ireland": "United Kingdom",
-  "United States of America": "USA",
-  "Venezuela, Bolivarian Republic of": "Venezuela",
-};
-
 const numbeoIndexRows = [
   { key: "quality_of_life", label: "Quality of Life", better: "high" },
   { key: "safety", label: "Safety", better: "high" },
@@ -160,6 +141,138 @@ async function loadInitialData() {
     els.countryList.innerHTML = `<div class="selection-list-empty">Failed to load countries.</div>`;
     els.cityList.innerHTML = `<div class="selection-list-empty">Failed to load cities.</div>`;
   }
+}
+
+function renderTableHeaderRow({
+  headRowEl,
+  headLabel,
+  data,
+  getColumnLabel,
+  getColumnMeta,
+  getHeaderDataAttrs = null,
+}) {
+  headRowEl.innerHTML = `
+    <th>${escapeHtml(headLabel)}</th>
+    ${data
+      .map((item) => {
+        const label = getColumnLabel(item);
+        const meta = getColumnMeta(item);
+        const metaHtml = meta
+          ? `<br><span class="table-city-meta">${escapeHtml(String(meta))}</span>`
+          : "";
+        const headerDataAttrs = getHeaderDataAttrs
+          ? getHeaderDataAttrs(item)
+          : "";
+
+        return `<th><span class="table-header-trigger" ${headerDataAttrs}><span class="table-city-name">${escapeHtml(String(label))}</span>${metaHtml}</span></th>`;
+      })
+      .join("")}
+  `;
+
+  bindHeaderInfoTooltips(headRowEl);
+}
+
+function buildHeatmapScale(values, totalCount) {
+  const numericValues = values
+    .map((value) => toNumber(value))
+    .filter((value) => value != null);
+  const minValue =
+    numericValues.length > 0 ? Math.min(...numericValues) : null;
+  const maxValue =
+    numericValues.length > 0 ? Math.max(...numericValues) : null;
+  const shouldApplySecondary =
+    totalCount - numericValues.length < 5 &&
+    numericValues.length >= 3;
+  const sortedUniqueValues = shouldApplySecondary
+    ? Array.from(new Set(numericValues)).sort((a, b) => a - b)
+    : [];
+
+  return {
+    minValue,
+    maxValue,
+    shouldApplySecondary,
+    secondMinValue:
+      sortedUniqueValues.length >= 3 ? sortedUniqueValues[1] : null,
+    secondMaxValue:
+      sortedUniqueValues.length >= 3
+        ? sortedUniqueValues[sortedUniqueValues.length - 2]
+        : null,
+  };
+}
+
+function getHeatmapClass(value, scale, better = "low") {
+  const numericValue = toNumber(value);
+  if (
+    numericValue == null ||
+    scale.minValue == null ||
+    scale.maxValue == null ||
+    scale.minValue === scale.maxValue
+  ) {
+    return "";
+  }
+
+  const lowerIsBetter = better === "low";
+
+  if (lowerIsBetter) {
+    if (numericValue === scale.minValue) return " cost-value-low";
+    if (numericValue === scale.maxValue) return " cost-value-high";
+    if (
+      scale.shouldApplySecondary &&
+      scale.secondMinValue != null &&
+      numericValue === scale.secondMinValue
+    ) {
+      return " cost-value-low-soft";
+    }
+    if (
+      scale.shouldApplySecondary &&
+      scale.secondMaxValue != null &&
+      numericValue === scale.secondMaxValue
+    ) {
+      return " cost-value-high-soft";
+    }
+    return "";
+  }
+
+  if (numericValue === scale.minValue) return " cost-value-high";
+  if (numericValue === scale.maxValue) return " cost-value-low";
+  if (
+    scale.shouldApplySecondary &&
+    scale.secondMinValue != null &&
+    numericValue === scale.secondMinValue
+  ) {
+    return " cost-value-high-soft";
+  }
+  if (
+    scale.shouldApplySecondary &&
+    scale.secondMaxValue != null &&
+    numericValue === scale.secondMaxValue
+  ) {
+    return " cost-value-low-soft";
+  }
+  return "";
+}
+
+function sortItemsByNumericValue(items, getValue, direction) {
+  const multiplier = direction === "asc" ? 1 : -1;
+
+  return items
+    .map((item, index) => ({
+      item,
+      index,
+      value: toNumber(getValue(item)),
+    }))
+    .sort((a, b) => {
+      const aMissing = a.value == null;
+      const bMissing = b.value == null;
+
+      if (aMissing && bMissing) return a.index - b.index;
+      if (aMissing) return 1;
+      if (bMissing) return -1;
+      if (a.value === b.value) return a.index - b.index;
+
+      return (a.value - b.value) * multiplier;
+    })
+    .map((entry) => entry.item);
 }
 
 function buildCountriesFromCities(cities) {
@@ -473,172 +586,6 @@ async function loadComparison() {
   }
 }
 
-function renderClimateChart() {
-  const chartCities = [...state.comparisonData].sort((a, b) => {
-    const aName = (a.city ?? a.name ?? "").toLowerCase();
-    const bName = (b.city ?? b.name ?? "").toLowerCase();
-    return aName.localeCompare(bName);
-  });
-  const labels = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
-  const climateCities = chartCities.map((city, index) =>
-    buildClimateCityConfig(city, index),
-  );
-
-  if (climateCities.length === 0) {
-    els.chartEmptyState.classList.remove("hidden");
-    els.climateChartsGrid.classList.add("hidden");
-    destroyClimateCharts();
-    return;
-  }
-
-  els.chartEmptyState.classList.add("hidden");
-  els.climateChartsGrid.classList.remove("hidden");
-
-  destroyClimateCharts();
-
-  state.climateCharts = [
-    new Chart(
-      els.climateTemperatureCanvas,
-      buildClimateChartConfig({
-        chartKey: "temperature",
-        labels,
-        datasets: climateCities.flatMap((city) => [
-          buildClimateDataset(city, "high_temp", {
-            datasetLabel: `${city.name} high`,
-            cityLabel: city.name,
-            cityKey: city.key,
-            color: city.color,
-            borderDash: [],
-            variant: "high",
-          }),
-          buildClimateDataset(city, "low_temp", {
-            datasetLabel: `${city.name} low`,
-            cityLabel: city.name,
-            cityKey: city.key,
-            color: city.color,
-            borderDash: [8, 5],
-            variant: "low",
-          }),
-        ]),
-        yTitle: "°C",
-        showLegend: true,
-      }),
-    ),
-    new Chart(
-      els.climateSunshineCanvas,
-      buildClimateChartConfig({
-        chartKey: "sunshine",
-        labels,
-        datasets: climateCities.map((city) =>
-          buildClimateDataset(city, "sunshine", {
-            datasetLabel: city.name,
-            cityLabel: city.name,
-            cityKey: city.key,
-            color: city.color,
-          }),
-        ),
-        yTitle: "Hours",
-      }),
-    ),
-    new Chart(
-      els.climateDaylightCanvas,
-      buildClimateChartConfig({
-        chartKey: "daylight",
-        labels,
-        datasets: climateCities.map((city) =>
-          buildClimateDataset(city, "daylight", {
-            datasetLabel: city.name,
-            cityLabel: city.name,
-            cityKey: city.key,
-            color: city.color,
-          }),
-        ),
-        yTitle: "Hours",
-      }),
-    ),
-    new Chart(
-      els.climateHumidityCanvas,
-      buildClimateChartConfig({
-        chartKey: "humidity",
-        labels,
-        datasets: climateCities.map((city) =>
-          buildClimateDataset(city, "humidity", {
-            datasetLabel: city.name,
-            cityLabel: city.name,
-            cityKey: city.key,
-            color: city.color,
-          }),
-        ),
-        yTitle: "%",
-      }),
-    ),
-    new Chart(
-      els.climateRainfallCanvas,
-      buildClimateChartConfig({
-        chartKey: "rainfall",
-        labels,
-        datasets: climateCities.map((city) =>
-          buildClimateDataset(city, "rainfall", {
-            datasetLabel: city.name,
-            cityLabel: city.name,
-            cityKey: city.key,
-            color: city.color,
-          }),
-        ),
-        yTitle: "mm",
-      }),
-    ),
-    new Chart(
-      els.climateWindCanvas,
-      buildClimateChartConfig({
-        chartKey: "wind",
-        labels,
-        datasets: climateCities.map((city) =>
-          buildClimateDataset(city, "wind_speed", {
-            datasetLabel: city.name,
-            cityLabel: city.name,
-            cityKey: city.key,
-            color: city.color,
-          }),
-        ),
-        yTitle: "km/h",
-      }),
-    ),
-    new Chart(
-      els.climateUVIndexCanvas,
-      buildClimateChartConfig({
-        chartKey: "uv_index",
-        labels,
-        datasets: climateCities.map((city) =>
-          buildClimateDataset(city, "uv_index", {
-            datasetLabel: city.name,
-            cityLabel: city.name,
-            cityKey: city.key,
-            color: city.color,
-          }),
-        ),
-        yTitle: "",
-        reserveYAxisTitleSpace: true,
-      }),
-    ),
-  ];
-
-  syncClimateChartStyles();
-}
-
 function renderCostBreakdownTable() {
   if (!state.costBreakdownData.length || !state.comparisonData.length) {
     els.costBreakdownEmptyState.classList.remove("hidden");
@@ -649,20 +596,18 @@ function renderCostBreakdownTable() {
   els.costBreakdownEmptyState.classList.add("hidden");
   els.costBreakdownWrapper.classList.remove("hidden");
 
-  els.costBreakdownHeadRow.innerHTML = `
-    <th>Item</th>
-    ${state.comparisonData
-      .map((city) => {
-        const cityName = city.city ?? city.name ?? "City";
-        const country =
-          city.country ?? city.country_name ?? city.country_code ?? "";
-        const displayCountry = getDisplayCountryName(country);
-        const cityID = String(city.geoname_id ?? city.city_id ?? city.id ?? "");
-        return `<th><span class="table-header-trigger" data-header-kind="city" data-city-id="${escapeHtml(cityID)}"><span class="table-city-name">${escapeHtml(cityName)}</span><br><span class="table-city-meta">${escapeHtml(String(displayCountry))}</span></span></th>`;
-      })
-      .join("")}
-  `;
-  bindHeaderInfoTooltips(els.costBreakdownHeadRow);
+  renderTableHeaderRow({
+    headRowEl: els.costBreakdownHeadRow,
+    headLabel: "Item",
+    data: state.comparisonData,
+    getColumnLabel: (city) => city.city ?? city.name ?? "City",
+    getColumnMeta: (city) =>
+      getDisplayCountryName(
+        city.country ?? city.country_name ?? city.country_code ?? "",
+      ),
+    getHeaderDataAttrs: (city) =>
+      `data-header-kind="city" data-city-id="${escapeHtml(String(city.geoname_id ?? city.city_id ?? city.id ?? ""))}"`,
+  });
 
   els.costBreakdownBody.innerHTML = state.costBreakdownData
     .map((group) => {
@@ -678,78 +623,18 @@ function renderCostBreakdownTable() {
           const sortDirection = isActiveSort
             ? state.breakdownSort.direction
             : null;
-          const numericEntries = item.values
-            .map((value, index) => ({
-              index,
-              numericValue: toNumber(value?.cost),
-            }))
-            .filter((entry) => entry.numericValue != null);
-          const numericValues = numericEntries.map(
-            (entry) => entry.numericValue,
+          const scale = buildHeatmapScale(
+            item.values.map((value) => value?.cost),
+            item.values.length,
           );
-          const minValue =
-            numericValues.length > 0 ? Math.min(...numericValues) : null;
-          const maxValue =
-            numericValues.length > 0 ? Math.max(...numericValues) : null;
-          const shouldApplySecondary =
-            item.values.length - numericValues.length < 5 &&
-            numericValues.length >= 3;
-          const sortedUniqueValues = shouldApplySecondary
-            ? Array.from(new Set(numericValues)).sort((a, b) => a - b)
-            : [];
-          const secondMinValue =
-            sortedUniqueValues.length >= 3 ? sortedUniqueValues[1] : null;
-          const secondMaxValue =
-            sortedUniqueValues.length >= 3
-              ? sortedUniqueValues[sortedUniqueValues.length - 2]
-              : null;
           const cells = item.values
             .map((value) => {
-              const numericValue = toNumber(value?.cost);
               let cellClass = "cost-value";
-
-              if (
-                numericValue != null &&
-                minValue != null &&
-                maxValue != null &&
-                minValue !== maxValue
-              ) {
-                if (isSalaryRow) {
-                  if (numericValue === minValue) {
-                    cellClass += " cost-value-high";
-                  } else if (numericValue === maxValue) {
-                    cellClass += " cost-value-low";
-                  } else if (
-                    shouldApplySecondary &&
-                    secondMinValue != null &&
-                    numericValue === secondMinValue
-                  ) {
-                    cellClass += " cost-value-high-soft";
-                  } else if (
-                    shouldApplySecondary &&
-                    secondMaxValue != null &&
-                    numericValue === secondMaxValue
-                  ) {
-                    cellClass += " cost-value-low-soft";
-                  }
-                } else if (numericValue === minValue) {
-                  cellClass += " cost-value-low";
-                } else if (numericValue === maxValue) {
-                  cellClass += " cost-value-high";
-                } else if (
-                  shouldApplySecondary &&
-                  secondMinValue != null &&
-                  numericValue === secondMinValue
-                ) {
-                  cellClass += " cost-value-low-soft";
-                } else if (
-                  shouldApplySecondary &&
-                  secondMaxValue != null &&
-                  numericValue === secondMaxValue
-                ) {
-                  cellClass += " cost-value-high-soft";
-                }
-              }
+              cellClass += getHeatmapClass(
+                value?.cost,
+                scale,
+                isSalaryRow ? "high" : "low",
+              );
 
               return `<td class="${cellClass}">${escapeHtml(formatCostValue(value, { isMortgageRate: isMortgageRateRow }))}</td>`;
             })
@@ -838,8 +723,6 @@ function renderNumbeoIndicesTable() {
       getDisplayCountryName(
         city.country ?? city.country_name ?? city.country_code ?? "",
       ),
-    getColumnMetaTitle: (city) =>
-      city.country ?? city.country_name ?? city.country_code ?? "",
     getValue: (city, key) => toNumber(city.numbeo_indices?.[key]),
     getHeaderDataAttrs: (city) =>
       `data-header-kind="city" data-city-id="${escapeHtml(String(city.geoname_id ?? city.city_id ?? city.id ?? ""))}"`,
@@ -863,7 +746,6 @@ function renderCountryNumbeoIndicesTable() {
         country.country ?? country.country_name ?? country.country_code ?? "Country",
       ),
     getColumnMeta: () => "",
-    getColumnMetaTitle: () => "",
     getValue: (country, key) => toNumber(country.numbeo_indices?.[key]),
     getHeaderDataAttrs: (country) =>
       `data-header-kind="country" data-country-code="${escapeHtml(String(country.country_code ?? ""))}"`,
@@ -891,7 +773,6 @@ function renderLegatumIndicesTable() {
         country.country ?? country.country_name ?? country.country_code ?? "Country",
       ),
     getColumnMeta: () => "",
-    getColumnMetaTitle: () => "",
     getValue: (country, key) =>
       toNumber(
         country.legatum_indices?.[key]?.[
@@ -920,7 +801,6 @@ function renderNumbeoIndicesTableSection({
   applySort,
   getColumnLabel,
   getColumnMeta,
-  getColumnMetaTitle,
   getValue,
   getHeaderDataAttrs = null,
   getCellDataAttrs = null,
@@ -957,29 +837,10 @@ function renderNumbeoIndicesTableSection({
       const isHigherBetter = row.better === "high";
       const isActiveSort = sortState?.key === row.key;
       const sortDirection = isActiveSort ? sortState.direction : null;
-      const numericEntries = data
-        .map((item, index) => ({
-          index,
-          numericValue: getValue(item, row.key),
-        }))
-        .filter((entry) => entry.numericValue != null);
-      const numericValues = numericEntries.map((entry) => entry.numericValue);
-      const minValue =
-        numericValues.length > 0 ? Math.min(...numericValues) : null;
-      const maxValue =
-        numericValues.length > 0 ? Math.max(...numericValues) : null;
-      const shouldApplySecondary =
-        data.length - numericValues.length < 5 &&
-        numericValues.length >= 3;
-      const sortedUniqueValues = shouldApplySecondary
-        ? Array.from(new Set(numericValues)).sort((a, b) => a - b)
-        : [];
-      const secondMinValue =
-        sortedUniqueValues.length >= 3 ? sortedUniqueValues[1] : null;
-      const secondMaxValue =
-        sortedUniqueValues.length >= 3
-          ? sortedUniqueValues[sortedUniqueValues.length - 2]
-          : null;
+      const scale = buildHeatmapScale(
+        data.map((item) => getValue(item, row.key)),
+        data.length,
+      );
 
       const cells = data
         .map((item) => {
@@ -988,49 +849,11 @@ function renderNumbeoIndicesTableSection({
             ? getCellDataAttrs(item, row)
             : "";
           let cellClass = "indices-value";
-
-          if (
-            value != null &&
-            minValue != null &&
-            maxValue != null &&
-            minValue !== maxValue
-          ) {
-            if (isHigherBetter) {
-              if (value === minValue) {
-                cellClass += " cost-value-high";
-              } else if (value === maxValue) {
-                cellClass += " cost-value-low";
-              } else if (
-                shouldApplySecondary &&
-                secondMinValue != null &&
-                value === secondMinValue
-              ) {
-                cellClass += " cost-value-high-soft";
-              } else if (
-                shouldApplySecondary &&
-                secondMaxValue != null &&
-                value === secondMaxValue
-              ) {
-                cellClass += " cost-value-low-soft";
-              }
-            } else if (value === minValue) {
-              cellClass += " cost-value-low";
-            } else if (value === maxValue) {
-              cellClass += " cost-value-high";
-            } else if (
-              shouldApplySecondary &&
-              secondMinValue != null &&
-              value === secondMinValue
-            ) {
-              cellClass += " cost-value-low-soft";
-            } else if (
-              shouldApplySecondary &&
-              secondMaxValue != null &&
-              value === secondMaxValue
-            ) {
-              cellClass += " cost-value-high-soft";
-            }
-          }
+          cellClass += getHeatmapClass(
+            value,
+            scale,
+            isHigherBetter ? "high" : "low",
+          );
 
           return `<td class="${cellClass}" ${cellDataAttrs}>${escapeHtml(formatIndexValue(value, row))}</td>`;
         })
@@ -1062,147 +885,6 @@ function renderNumbeoIndicesTableSection({
       applySort(key);
     });
   });
-}
-
-function bindHeaderInfoTooltips(container) {
-  container
-    .querySelectorAll(".table-header-trigger[data-header-kind]")
-    .forEach((cell) => {
-      cell.addEventListener("mouseenter", () => {
-        showHeaderInfoTooltip(cell);
-      });
-      cell.addEventListener("mousemove", (event) => {
-        positionHeaderInfoTooltip(event.clientX, event.clientY);
-      });
-      cell.addEventListener("mouseleave", hideHeaderInfoTooltip);
-    });
-}
-
-function showHeaderInfoTooltip(cell) {
-  const kind = cell.dataset.headerKind;
-  if (!kind) return;
-
-  const tooltipEl = getHeaderInfoTooltipElement();
-  const content = kind === "city"
-    ? buildCityHeaderTooltipContent(cell.dataset.cityId)
-    : buildCountryHeaderTooltipContent(cell.dataset.countryCode);
-
-  if (!content) {
-    tooltipEl.classList.remove("is-visible");
-    return;
-  }
-
-  tooltipEl.innerHTML = content;
-  tooltipEl.classList.add("is-visible");
-}
-
-function hideHeaderInfoTooltip() {
-  getHeaderInfoTooltipElement().classList.remove("is-visible");
-}
-
-function positionHeaderInfoTooltip(clientX, clientY) {
-  const tooltipEl = getHeaderInfoTooltipElement();
-  if (!tooltipEl.classList.contains("is-visible")) return;
-
-  const offset = 14;
-  const rect = tooltipEl.getBoundingClientRect();
-  let left = clientX + offset;
-  let top = clientY + offset;
-
-  if (left + rect.width > window.innerWidth - 12) {
-    left = clientX - rect.width - offset;
-  }
-  if (top + rect.height > window.innerHeight - 12) {
-    top = clientY - rect.height - offset;
-  }
-
-  tooltipEl.style.left = `${Math.max(12, left)}px`;
-  tooltipEl.style.top = `${Math.max(12, top)}px`;
-}
-
-function getHeaderInfoTooltipElement() {
-  let tooltipEl = document.querySelector(".header-info-tooltip");
-  if (!tooltipEl) {
-    tooltipEl = document.createElement("div");
-    tooltipEl.className = "header-info-tooltip";
-    document.body.appendChild(tooltipEl);
-  }
-  return tooltipEl;
-}
-
-function buildCityHeaderTooltipContent(cityID) {
-  if (!cityID) return "";
-
-  const city = state.comparisonData.find(
-    (item) => String(item.geoname_id ?? item.city_id ?? item.id ?? "") === String(cityID),
-  );
-  if (!city) return "";
-
-  const cityName = city.city ?? city.name ?? "City";
-  const population = formatCompactPopulation(city.population);
-  const utcOffset = formatUTCOffset(city.timezone);
-
-  return `
-    <div class="header-info-title">${escapeHtml(cityName)}</div>
-    <div class="header-info-row"><span class="header-info-key">Pop.</span><span class="header-info-value">${escapeHtml(population)}</span></div>
-    <div class="header-info-row"><span class="header-info-key">UTC</span><span class="header-info-value">${escapeHtml(utcOffset)}</span></div>
-  `;
-}
-
-function buildCountryHeaderTooltipContent(countryCode) {
-  if (!countryCode) return "";
-
-  const country = state.countryComparisonData.find(
-    (item) => String(item.country_code ?? "") === String(countryCode),
-  );
-  if (!country) return "";
-
-  const countryName =
-    country.country ?? country.country_name ?? country.country_code ?? "Country";
-  const population = formatCompactPopulation(country.population);
-  const area = formatCompactArea(country.area);
-
-  return `
-    <div class="header-info-title">${escapeHtml(countryName)}</div>
-    <div class="header-info-row"><span class="header-info-key">Pop.</span><span class="header-info-value">${escapeHtml(population)}</span></div>
-    <div class="header-info-row"><span class="header-info-key">Area</span><span class="header-info-value">${escapeHtml(area)}</span></div>
-  `;
-}
-
-function formatCompactPopulation(value) {
-  const n = toNumber(value);
-  if (n == null) return "—";
-  return new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(n);
-}
-
-function formatCompactArea(value) {
-  const n = toNumber(value);
-  if (n == null) return "—";
-  return `${new Intl.NumberFormat("en-US", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(n)} km²`;
-}
-
-function formatUTCOffset(timezone) {
-  if (!timezone) return "—";
-
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: timezone,
-      timeZoneName: "shortOffset",
-    }).formatToParts(new Date());
-    const timeZoneName =
-      parts.find((part) => part.type === "timeZoneName")?.value ?? "";
-
-    if (!timeZoneName) return String(timezone);
-    return timeZoneName.replace("GMT", "UTC");
-  } catch {
-    return String(timezone);
-  }
 }
 
 function buildCostBreakdownDataset(cities) {
@@ -1339,602 +1021,6 @@ function expandFilters() {
   els.editFiltersBtn.classList.add("hidden");
 }
 
-function normalizeMonthlySeries(arr) {
-  const out = new Array(12).fill(null);
-  for (let i = 0; i < Math.min(arr.length, 12); i += 1) {
-    out[i] = toNumber(arr[i]);
-  }
-  return out;
-}
-
-function buildClimateCityConfig(city, index) {
-  const climate = city.avg_climate ?? buildPlaceholderClimate(city, index);
-  const key = String(city.geoname_id ?? city.city_id ?? city.id ?? city.city ?? index);
-  return {
-    key,
-    name: city.city ?? city.name ?? `City ${index + 1}`,
-    climate,
-    color: getClimateColor(index),
-  };
-}
-
-function buildPlaceholderClimate(city, index) {
-  const offset = index * 1.4;
-  return {
-    high_temp: [5, 7, 11, 16, 21, 25, 28, 28, 23, 17, 11, 7].map((v) => v + offset),
-    low_temp: [-1, 0, 3, 8, 13, 17, 20, 20, 16, 10, 5, 1].map((v) => v + offset),
-    sunshine: [3, 4, 5, 7, 8, 9, 10, 9, 7, 5, 4, 3].map((v) => Math.max(0, v - index * 0.2)),
-    daylight: [9, 10, 12, 13, 15, 16, 15, 14, 12, 11, 9, 8].map((v) => v),
-    humidity: [76, 74, 71, 69, 68, 66, 64, 65, 68, 72, 75, 77].map((v) => v + index),
-    rainfall: [62, 58, 61, 67, 72, 76, 81, 79, 70, 66, 64, 68].map((v) => v + index * 4),
-    wind_speed: [14, 13, 13, 12, 11, 10, 9, 9, 10, 11, 12, 13].map((v) => Math.max(3, v - index * 0.3)),
-    uv_index: [1, 2, 3, 5, 6, 7, 8, 7, 5, 3, 2, 1].map((v) => Math.min(11, Math.max(0, v + index * 0.2))),
-  };
-}
-
-function getClimateColor(index) {
-  const palette = [
-    "#2563eb",
-    "#ef4444",
-    "#0f766e",
-    "#d97706",
-    "#7c3aed",
-    "#db2777",
-    "#0891b2",
-    "#65a30d",
-    "#c2410c",
-    "#475569",
-    "#16a34a",
-    "#ea580c",
-    "#4f46e5",
-    "#be123c",
-    "#0d9488",
-  ];
-  return palette[index % palette.length];
-}
-
-function buildClimateDataset(city, metricKey, options = {}) {
-  const rawSeries = city.climate?.[metricKey] ?? [];
-  const baseColor = options.color ?? city.color;
-  return {
-    label: options.datasetLabel ?? city.name,
-    data: normalizeMonthlySeries(rawSeries),
-    borderColor: baseColor,
-    backgroundColor: withAlpha(baseColor, 0.12),
-    borderWidth: 2.5,
-    tension: 0.35,
-    pointRadius: 0,
-    pointHoverRadius: 4,
-    pointHitRadius: 14,
-    fill: false,
-    borderDash: options.borderDash ?? [],
-    cityKey: options.cityKey ?? city.key,
-    cityLabel: options.cityLabel ?? city.name,
-    variant: options.variant ?? "default",
-    _baseColor: baseColor,
-  };
-}
-
-function buildClimateChartConfig({
-  chartKey,
-  labels,
-  datasets,
-  yTitle,
-  reserveYAxisTitleSpace = false,
-  showLegend = false,
-}) {
-  return {
-    type: "line",
-    data: { labels, datasets },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: "nearest",
-        intersect: false,
-      },
-      onHover: (_event, elements, chart) => {
-        const hoveredDataset = elements.length > 0
-          ? chart.data.datasets[elements[0].datasetIndex]
-          : null;
-        setHoveredClimateCity(hoveredDataset?.cityKey ?? null);
-      },
-      plugins: {
-        legend: showLegend
-          ? {
-              position: "top",
-              labels: {
-                usePointStyle: true,
-                pointStyle: "circle",
-                boxWidth: 10,
-                boxHeight: 10,
-                padding: 14,
-                font: {
-                  size: 13,
-                  lineHeight: 1.15,
-                },
-                generateLabels: (chart) => {
-                  const seen = new Set();
-                  const labels = [];
-                  chart.data.datasets.forEach((dataset, datasetIndex) => {
-                    if (seen.has(dataset.cityKey)) return;
-                    seen.add(dataset.cityKey);
-                    const isHidden = state.climateHiddenCities.has(dataset.cityKey);
-                    labels.push({
-                      text: dataset.cityLabel,
-                      fillStyle: withAlpha(dataset._baseColor, isHidden ? 0.18 : 0.9),
-                      strokeStyle: withAlpha(dataset._baseColor, isHidden ? 0.18 : 0.9),
-                      lineWidth: 2,
-                      hidden: isHidden,
-                      datasetIndex,
-                      cityKey: dataset.cityKey,
-                    });
-                  });
-                  return labels;
-                },
-              },
-              onClick: (_event, legendItem) => {
-                const cityKey = legendItem.cityKey;
-                if (!cityKey) return;
-                if (state.climateHiddenCities.has(cityKey)) {
-                  state.climateHiddenCities.delete(cityKey);
-                } else {
-                  state.climateHiddenCities.add(cityKey);
-                }
-                syncClimateChartStyles();
-              },
-            }
-          : {
-              display: false,
-            },
-        tooltip: {
-          enabled: false,
-          mode: "nearest",
-          intersect: false,
-          external: (context) =>
-            renderClimateTooltip(context, { chartKey, yTitle }),
-        },
-      },
-      scales: {
-        x: {
-          grid: {
-            color: "rgba(148, 163, 184, 0.12)",
-          },
-          ticks: {
-            color: "#64748b",
-          },
-        },
-        y: {
-          grid: {
-            color: "rgba(148, 163, 184, 0.12)",
-          },
-          ticks: {
-            color: "#64748b",
-          },
-          title: {
-            display: Boolean(yTitle) || reserveYAxisTitleSpace,
-            text: yTitle || " ",
-            color: yTitle ? "#64748b" : "rgba(0,0,0,0)",
-            font: {
-              size: 12,
-              weight: "600",
-            },
-          },
-        },
-      },
-      elements: {
-        line: {
-          capBezierPoints: true,
-        },
-      },
-    },
-    plugins: [
-      {
-        id: `climate-hover-reset-${chartKey}`,
-        afterEvent: (_chart, args) => {
-          if (args.event.type === "mouseout") {
-            setHoveredClimateCity(null);
-          }
-        },
-      },
-    ],
-  };
-}
-
-function destroyClimateCharts() {
-  state.climateCharts.forEach((chart) => chart.destroy());
-  state.climateCharts = [];
-}
-
-function setHoveredClimateCity(cityKey) {
-  if (state.climateHoveredCityKey === cityKey) return;
-  state.climateHoveredCityKey = cityKey;
-  syncClimateChartStyles();
-}
-
-function syncClimateChartStyles() {
-  state.climateCharts.forEach((chart) => {
-    chart.data.datasets.forEach((dataset) => {
-      const isHidden = state.climateHiddenCities.has(dataset.cityKey);
-      const isHovered =
-        state.climateHoveredCityKey &&
-        state.climateHoveredCityKey === dataset.cityKey;
-      const shouldFade =
-        state.climateHoveredCityKey && !isHovered;
-      const baseColor = getBaseDatasetColor(dataset);
-      const isLowVariant = dataset.variant === "low";
-      const alpha = isHidden
-        ? 0.06
-        : shouldFade
-          ? isLowVariant ? 0.18 : 0.3
-          : isHovered
-            ? isLowVariant ? 0.86 : 1
-            : isLowVariant ? 0.5 : 0.76;
-
-      dataset.hidden = isHidden;
-      dataset.borderColor = withAlpha(baseColor, alpha);
-      dataset.backgroundColor = withAlpha(
-        baseColor,
-        isHidden ? 0.03 : shouldFade ? 0.05 : isLowVariant ? 0.08 : 0.15,
-      );
-      dataset.borderWidth = isHovered
-        ? isLowVariant ? 2.3 : 3.3
-        : isLowVariant ? 1.7 : 2.2;
-      dataset.pointRadius = isHovered ? 2.5 : 0;
-    });
-    chart.update("none");
-  });
-}
-
-function renderClimateTooltip(context, options) {
-  const { chart, tooltip } = context;
-  const tooltipEl = getClimateTooltipElement(chart);
-
-  if (tooltip.opacity === 0 || !tooltip.dataPoints?.length) {
-    tooltipEl.classList.remove("is-visible");
-    return;
-  }
-
-  const dataPoint = tooltip.dataPoints[0];
-  const dataset = dataPoint.dataset;
-  const cityKey = dataset.cityKey;
-  const cityLabel = dataset.cityLabel;
-  const monthLabel = dataPoint.label;
-  const color = dataset._baseColor ?? "#2563eb";
-
-  let contentHtml = "";
-  if (options.chartKey === "temperature") {
-    const highDataset = chart.data.datasets.find(
-      (item) => item.cityKey === cityKey && item.variant === "high",
-    );
-    const lowDataset = chart.data.datasets.find(
-      (item) => item.cityKey === cityKey && item.variant === "low",
-    );
-    const highValue = toNumber(highDataset?.data?.[dataPoint.dataIndex]);
-    const lowValue = toNumber(lowDataset?.data?.[dataPoint.dataIndex]);
-    const highParts = formatTooltipValueParts(highValue, "°C");
-    const lowParts = formatTooltipValueParts(lowValue, "°C");
-    const highHtml = `
-      <span class="chart-tooltip-value-number">${escapeHtml(highParts.value)}</span>${highParts.unit ? ` <span class="chart-tooltip-unit">${escapeHtml(highParts.unit)}</span>` : ""}
-    `;
-    const lowHtml = `
-      <span class="chart-tooltip-value-number">${escapeHtml(lowParts.value)}</span>${lowParts.unit ? ` <span class="chart-tooltip-unit">${escapeHtml(lowParts.unit)}</span>` : ""}
-    `;
-    contentHtml = `
-      <div class="chart-tooltip-city">${escapeHtml(cityLabel)}</div>
-      <div class="chart-tooltip-text">${escapeHtml(monthLabel)}:</div>
-      <div class="chart-tooltip-metric">
-        <span class="chart-tooltip-key">High:</span>
-        <span class="chart-tooltip-value">${highHtml}</span>
-      </div>
-      <div class="chart-tooltip-metric">
-        <span class="chart-tooltip-key">Low:</span>
-        <span class="chart-tooltip-value">${lowHtml}</span>
-      </div>
-    `;
-  } else {
-    const value = toNumber(dataPoint.parsed?.y);
-    const valueParts = formatTooltipValueParts(value, options.yTitle);
-    const valueHtml = valueParts.unit
-      ? `${escapeHtml(valueParts.value)} <span class="chart-tooltip-unit">${escapeHtml(valueParts.unit)}</span>`
-      : escapeHtml(valueParts.value);
-    contentHtml = `
-      <div class="chart-tooltip-city">${escapeHtml(cityLabel)}</div>
-      <div class="chart-tooltip-metric chart-tooltip-metric-inline">
-        <span class="chart-tooltip-key">${escapeHtml(monthLabel)}</span>
-        <span class="chart-tooltip-value">${valueHtml}</span>
-      </div>
-    `;
-  }
-
-  tooltipEl.innerHTML = `
-    <div class="chart-tooltip-row">
-      <span class="chart-tooltip-swatch" style="background:${escapeHtml(color)}"></span>
-      <div>${contentHtml}</div>
-    </div>
-  `;
-
-  const { offsetLeft: positionX, offsetTop: positionY } = chart.canvas;
-  tooltipEl.style.left = `${positionX + tooltip.caretX + 14}px`;
-  tooltipEl.style.top = `${positionY + tooltip.caretY - 12}px`;
-  tooltipEl.classList.add("is-visible");
-}
-
-function getClimateTooltipElement(chart) {
-  const parent = chart.canvas.parentNode;
-  let tooltipEl = parent.querySelector(".chart-tooltip");
-
-  if (!tooltipEl) {
-    tooltipEl = document.createElement("div");
-    tooltipEl.className = "chart-tooltip";
-    parent.appendChild(tooltipEl);
-  }
-
-  return tooltipEl;
-}
-
-function formatTooltipValue(value, unit) {
-  if (value == null) return "—";
-  const raw = String(value);
-  if (unit === "%" || unit === "mm") {
-    return `${raw}${unit}`;
-  }
-  if (unit === "km/h") {
-    return `${raw} km/h`;
-  }
-  if (unit === "UV") {
-    return raw;
-  }
-  if (unit === "Hours") {
-    return `${raw} h`;
-  }
-  if (unit === "°C") {
-    return `${raw}${unit}`;
-  }
-  return `${raw} ${unit}`;
-}
-
-function formatTooltipValueParts(value, unit) {
-  if (value == null) {
-    return { value: "—", unit: "" };
-  }
-
-  const raw = String(value);
-  if (unit === "%" || unit === "mm" || unit === "°C") {
-    return { value: raw, unit };
-  }
-  if (unit === "" || unit === "UV") {
-    return { value: raw, unit: "" };
-  }
-  if (unit === "km/h") {
-    return { value: raw, unit: "km/h" };
-  }
-  if (unit === "Hours") {
-    return { value: raw, unit: "h" };
-  }
-  return { value: raw, unit };
-}
-
-function formatIndexValue(value, row = null) {
-  if (value == null) return "—";
-  if (row?.format === "currency") {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: value >= 100 ? 0 : 2,
-      minimumFractionDigits: value >= 100 ? 0 : 2,
-    }).format(value);
-  }
-  return String(value);
-}
-
-function bindLegatumTooltipEvents() {
-  els.legatumIndicesBody
-    .querySelectorAll("[data-legatum-row-key][data-legatum-country-code]")
-    .forEach((cell) => {
-      cell.addEventListener("mouseenter", () => {
-        showLegatumTooltip(cell);
-      });
-      cell.addEventListener("mousemove", (event) => {
-        positionLegatumTooltip(event.clientX, event.clientY);
-      });
-      cell.addEventListener("mouseleave", hideLegatumTooltip);
-    });
-}
-
-function showLegatumTooltip(cell) {
-  const rowKey = cell.dataset.legatumRowKey;
-  const countryCode = cell.dataset.legatumCountryCode;
-  if (!rowKey || !countryCode) return;
-
-  const country = state.countryComparisonData.find(
-    (item) => item.country_code === countryCode,
-  );
-  const row = legatumIndexRows.find((item) => item.key === rowKey);
-  if (!country || !row) return;
-
-  const tooltipEl = getLegatumTooltipElement();
-  const isRankMode = state.legatumMetricMode === "rank";
-  const series = buildLegatumSeries(
-    country.legatum_indices?.[rowKey],
-    isRankMode ? "rank" : "score",
-  );
-  if (!series.length) {
-    tooltipEl.classList.remove("is-visible");
-    return;
-  }
-
-  const values = series.map((point) => point.value);
-  const minValue = Math.min(...values);
-  const maxValue = Math.max(...values);
-  const currentPoint = series[series.length - 1];
-  const displayCountry = getDisplayCountryName(
-    country.country ?? country.country_name ?? country.country_code ?? countryCode,
-  );
-
-  tooltipEl.innerHTML = `
-    <div class="legatum-tooltip-title">${escapeHtml(displayCountry)}</div>
-    <div class="legatum-tooltip-subtitle">${escapeHtml(row.label)} • ${escapeHtml(isRankMode ? "Rank" : "Score")}</div>
-    <div class="legatum-tooltip-current">${escapeHtml(String(currentPoint.year))}: ${escapeHtml(String(currentPoint.value))}</div>
-    <div class="legatum-tooltip-chart">
-      ${renderLegatumSparkline(series, { minValue, maxValue, isRankMode })}
-    </div>
-  `;
-  tooltipEl.classList.add("is-visible");
-}
-
-function hideLegatumTooltip() {
-  getLegatumTooltipElement().classList.remove("is-visible");
-}
-
-function positionLegatumTooltip(clientX, clientY) {
-  const tooltipEl = getLegatumTooltipElement();
-  if (!tooltipEl.classList.contains("is-visible")) return;
-
-  const offset = 16;
-  const { innerWidth, innerHeight } = window;
-  const rect = tooltipEl.getBoundingClientRect();
-  let left = clientX + offset;
-  let top = clientY + offset;
-
-  if (left + rect.width > innerWidth - 12) {
-    left = clientX - rect.width - offset;
-  }
-  if (top + rect.height > innerHeight - 12) {
-    top = clientY - rect.height - offset;
-  }
-
-  tooltipEl.style.left = `${Math.max(12, left)}px`;
-  tooltipEl.style.top = `${Math.max(12, top)}px`;
-}
-
-function getLegatumTooltipElement() {
-  let tooltipEl = document.querySelector(".legatum-tooltip");
-  if (!tooltipEl) {
-    tooltipEl = document.createElement("div");
-    tooltipEl.className = "legatum-tooltip";
-    document.body.appendChild(tooltipEl);
-  }
-  return tooltipEl;
-}
-
-function buildLegatumSeries(entry, mode) {
-  if (!entry) return [];
-
-  return legatumYears
-    .map((year) => ({
-      year,
-      value: toNumber(entry[`${mode}_${year}`]),
-    }))
-    .filter((point) => point.value != null);
-}
-
-function renderLegatumSparkline(series, { minValue, maxValue, isRankMode }) {
-  const width = 230;
-  const height = 122;
-  const padding = { top: 10, right: 30, bottom: 24, left: 8 };
-  const plotWidth = width - padding.left - padding.right;
-  const plotHeight = height - padding.top - padding.bottom;
-  const range = maxValue - minValue || 1;
-  const midYear = 2015;
-  const midX =
-    padding.left +
-    (plotWidth * (midYear - legatumYears[0])) /
-      Math.max(1, legatumYears.length - 1);
-  const midValue = (minValue + maxValue) / 2;
-  const midNormalized = isRankMode
-    ? (maxValue - midValue) / range
-    : (midValue - minValue) / range;
-  const midY = padding.top + plotHeight - midNormalized * plotHeight;
-
-  const points = series.map((point, index) => {
-    const x =
-      padding.left +
-      (plotWidth * index) / Math.max(1, series.length - 1);
-    const normalized = isRankMode
-      ? (maxValue - point.value) / range
-      : (point.value - minValue) / range;
-    const y = padding.top + plotHeight - normalized * plotHeight;
-    return { ...point, x, y };
-  });
-
-  const polylinePoints = points.map((point) => `${point.x},${point.y}`).join(" ");
-  const stroke = isRankMode ? "#2563eb" : "#0f766e";
-  const topAxisValue = isRankMode ? minValue : maxValue;
-  const bottomAxisValue = isRankMode ? maxValue : minValue;
-
-  return `
-    <svg viewBox="0 0 ${width} ${height}" class="legatum-tooltip-sparkline" aria-hidden="true">
-      <line x1="${padding.left}" y1="${padding.top}" x2="${width - padding.right}" y2="${padding.top}" class="legatum-tooltip-grid" />
-      <line x1="${padding.left}" y1="${midY}" x2="${width - padding.right}" y2="${midY}" class="legatum-tooltip-grid legatum-tooltip-grid-mid" />
-      <line x1="${padding.left}" y1="${padding.top + plotHeight}" x2="${width - padding.right}" y2="${padding.top + plotHeight}" class="legatum-tooltip-grid" />
-      <line x1="${midX}" y1="${padding.top + plotHeight}" x2="${midX}" y2="${padding.top + plotHeight + 5}" class="legatum-tooltip-axis-tick legatum-tooltip-axis-tick-mid" />
-      <polyline points="${polylinePoints}" fill="none" stroke="${stroke}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
-      <circle cx="${points[0].x}" cy="${points[0].y}" r="2.5" fill="${stroke}" />
-      <circle cx="${points[points.length - 1].x}" cy="${points[points.length - 1].y}" r="3" fill="${stroke}" />
-      <text x="${width - 2}" y="${padding.top + 4}" text-anchor="end" class="legatum-tooltip-y-label">${escapeHtml(String(topAxisValue))}</text>
-      <text x="${width - 2}" y="${midY + 3}" text-anchor="end" class="legatum-tooltip-y-label legatum-tooltip-y-label-mid">${escapeHtml(formatLegatumAxisMidValue(midValue))}</text>
-      <text x="${width - 2}" y="${padding.top + plotHeight}" text-anchor="end" dominant-baseline="ideographic" class="legatum-tooltip-y-label">${escapeHtml(String(bottomAxisValue))}</text>
-      <text x="${padding.left}" y="${height - 4}" text-anchor="start" class="legatum-tooltip-x-label">2007</text>
-      <text x="${midX}" y="${height - 4}" text-anchor="middle" class="legatum-tooltip-x-label legatum-tooltip-x-label-mid">2015</text>
-      <text x="${width - padding.right}" y="${height - 4}" text-anchor="end" class="legatum-tooltip-x-label">2023</text>
-    </svg>
-  `;
-}
-
-function formatLegatumAxisMidValue(value) {
-  if (!Number.isFinite(value)) return "—";
-  return String(Math.round(value));
-}
-
-function getBaseDatasetColor(dataset) {
-  return dataset._baseColor ?? "#2563eb";
-}
-
-function withAlpha(color, alpha) {
-  const hex = color.replace("#", "");
-  const normalized =
-    hex.length === 3
-      ? hex
-          .split("")
-          .map((char) => char + char)
-          .join("")
-      : hex;
-  const r = parseInt(normalized.slice(0, 2), 16);
-  const g = parseInt(normalized.slice(2, 4), 16);
-  const b = parseInt(normalized.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-function toNumber(value) {
-  if (value == null) return null;
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
-}
-
-function fmt(value) {
-  const n = toNumber(value);
-  return n == null ? "—" : n.toFixed(1);
-}
-
-function formatCostValue(value, options = {}) {
-  if (!value) return "—";
-  const n = toNumber(value.cost);
-  if (n == null) return "—";
-
-  if (options.isMortgageRate) {
-    return `${n.toFixed(2)}%`;
-  }
-
-  const fractionDigits = n >= 100 ? 0 : 2;
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: value.currency ?? "USD",
-    maximumFractionDigits: fractionDigits,
-    minimumFractionDigits: fractionDigits,
-  }).format(n);
-}
-
 function applyBreakdownSort(param) {
   if (!state.comparisonData.length) return;
 
@@ -2046,97 +1132,38 @@ function applyLoadedComparisonSelection() {
 }
 
 function sortComparisonDataByCostParam(param, direction) {
-  const multiplier = direction === "asc" ? 1 : -1;
-
-  state.comparisonData = state.comparisonData
-    .map((city, index) => ({
-      city,
-      index,
-      value: getCostParamValue(city, param),
-    }))
-    .sort((a, b) => {
-      const aMissing = a.value == null;
-      const bMissing = b.value == null;
-
-      if (aMissing && bMissing) return a.index - b.index;
-      if (aMissing) return 1;
-      if (bMissing) return -1;
-      if (a.value === b.value) return a.index - b.index;
-
-      return (a.value - b.value) * multiplier;
-    })
-    .map((entry) => entry.city);
+  state.comparisonData = sortItemsByNumericValue(
+    state.comparisonData,
+    (city) => getCostParamValue(city, param),
+    direction,
+  );
 }
 
 function sortComparisonDataByIndexKey(key, direction) {
-  const multiplier = direction === "asc" ? 1 : -1;
-
-  state.comparisonData = state.comparisonData
-    .map((city, index) => ({
-      city,
-      index,
-      value: toNumber(city.numbeo_indices?.[key]),
-    }))
-    .sort((a, b) => {
-      const aMissing = a.value == null;
-      const bMissing = b.value == null;
-
-      if (aMissing && bMissing) return a.index - b.index;
-      if (aMissing) return 1;
-      if (bMissing) return -1;
-      if (a.value === b.value) return a.index - b.index;
-
-      return (a.value - b.value) * multiplier;
-    })
-    .map((entry) => entry.city);
+  state.comparisonData = sortItemsByNumericValue(
+    state.comparisonData,
+    (city) => city.numbeo_indices?.[key],
+    direction,
+  );
 }
 
 function sortCountryComparisonDataByIndexKey(key, direction) {
-  const multiplier = direction === "asc" ? 1 : -1;
-
-  state.countryComparisonData = state.countryComparisonData
-    .map((country, index) => ({
-      country,
-      index,
-      value: toNumber(country.numbeo_indices?.[key]),
-    }))
-    .sort((a, b) => {
-      const aMissing = a.value == null;
-      const bMissing = b.value == null;
-
-      if (aMissing && bMissing) return a.index - b.index;
-      if (aMissing) return 1;
-      if (bMissing) return -1;
-      if (a.value === b.value) return a.index - b.index;
-
-      return (a.value - b.value) * multiplier;
-    })
-    .map((entry) => entry.country);
+  state.countryComparisonData = sortItemsByNumericValue(
+    state.countryComparisonData,
+    (country) => country.numbeo_indices?.[key],
+    direction,
+  );
 }
 
 function sortCountryComparisonDataByLegatumKey(key, direction) {
-  const multiplier = direction === "asc" ? 1 : -1;
   const metricKey =
     state.legatumMetricMode === "rank" ? "rank_2023" : "score_2023";
 
-  state.countryComparisonData = state.countryComparisonData
-    .map((country, index) => ({
-      country,
-      index,
-      value: toNumber(country.legatum_indices?.[key]?.[metricKey]),
-    }))
-    .sort((a, b) => {
-      const aMissing = a.value == null;
-      const bMissing = b.value == null;
-
-      if (aMissing && bMissing) return a.index - b.index;
-      if (aMissing) return 1;
-      if (bMissing) return -1;
-      if (a.value === b.value) return a.index - b.index;
-
-      return (a.value - b.value) * multiplier;
-    })
-    .map((entry) => entry.country);
+  state.countryComparisonData = sortItemsByNumericValue(
+    state.countryComparisonData,
+    (country) => country.legatum_indices?.[key]?.[metricKey],
+    direction,
+  );
 }
 
 function syncLegatumToggleButtons() {
@@ -2218,11 +1245,6 @@ function sortCountriesBySelectedCityCountryOrder(countries, orderedCountryCodes)
   });
 }
 
-function getDisplayCountryName(country) {
-  const raw = String(country ?? "");
-  return countryDisplayNames[raw] ?? raw;
-}
-
 function formatFilterCityName(city) {
   const cityName = city.city ?? city.name ?? "";
   const countryCode = city.country_code ?? "";
@@ -2238,13 +1260,4 @@ function formatFilterCityName(city) {
   }
 
   return `${escapeHtml(cityName)} <span class="selection-title-meta">${escapeHtml(shortStateCode)}</span>`;
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
 }

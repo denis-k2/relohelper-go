@@ -25,6 +25,18 @@ func (app *application) dashboardAppJSHandler(w http.ResponseWriter, r *http.Req
 	app.serveUIAsset(w, r, "app.js", "application/javascript; charset=utf-8")
 }
 
+func (app *application) dashboardHelpersJSHandler(w http.ResponseWriter, r *http.Request) {
+	app.serveUIAsset(w, r, "helpers.js", "application/javascript; charset=utf-8")
+}
+
+func (app *application) dashboardTooltipsJSHandler(w http.ResponseWriter, r *http.Request) {
+	app.serveUIAsset(w, r, "tooltips.js", "application/javascript; charset=utf-8")
+}
+
+func (app *application) dashboardClimateJSHandler(w http.ResponseWriter, r *http.Request) {
+	app.serveUIAsset(w, r, "climate.js", "application/javascript; charset=utf-8")
+}
+
 func (app *application) dashboardStylesHandler(w http.ResponseWriter, r *http.Request) {
 	app.serveUIAsset(w, r, "styles.css", "text/css; charset=utf-8")
 }
