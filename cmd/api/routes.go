@@ -23,6 +23,13 @@ func (app *application) routes() http.Handler {
 	router.NotFound(app.notFoundResponse)
 	router.MethodNotAllowed(app.methodNotAllowedResponse)
 
+	router.Get("/", app.dashboardHandler)
+	router.Get("/app.js", app.dashboardAppJSHandler)
+	router.Get("/helpers.js", app.dashboardHelpersJSHandler)
+	router.Get("/tooltips.js", app.dashboardTooltipsJSHandler)
+	router.Get("/climate.js", app.dashboardClimateJSHandler)
+	router.Get("/styles.css", app.dashboardStylesHandler)
+	router.Get("/favicon.svg", app.dashboardFaviconHandler)
 	router.Get("/healthcheck", app.healthcheckHandler)
 	router.Get("/readyz", app.readinessHandler)
 	if app.config.metrics.port == 0 {

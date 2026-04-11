@@ -4,6 +4,8 @@ Relohelper is a REST API service rewritten in Go as a high-performance successor
 
 The Go implementation is now the primary and actively developed version of the project.
 
+Starting from [`v0.3.0`](https://github.com/denis-k2/relohelper-go/releases/tag/v0.3.0), the project also includes a built-in dashboard UI on top of the API. The UI is intended as a reference client for comparing cities by cost of living, climate, and quality of life, while the API remains the core product surface.
+
 ## About the Project
 
 This project focuses on:
@@ -12,6 +14,7 @@ This project focuses on:
 - Structured architecture
 - Performance-oriented implementation
 - Reproducible load testing
+- A reference dashboard UI built on top of the API
 
 The original Python implementation can be found [here](https://github.com/denis-k2/relohelper).
 
@@ -23,6 +26,13 @@ Project documentation is located in the `docs/` directory:
 - `docs/performance/` — load testing methodology and benchmark runs
 
 Performance comparison between Go and Python implementations is documented [here](./docs/performance/runs/2025-04-22_compare-go-v0.1.0_py-v0.3.0/README.md).
+
+## Public Access
+
+- Dashboard UI: `https://relohelper.pro/`
+- Swagger UI: `https://relohelper.pro/swagger`
+- `/metrics` is internal-only
+- Grafana is available through SSH tunneling only
 
 ## Local Development
 

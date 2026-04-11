@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Relohelper Dashboard</title>
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="stylesheet" href="./styles.css" />
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script defer src="./helpers.js"></script>
+        <script defer src="./tooltips.js"></script>
+        <script defer src="./climate.js"></script>
+        <script defer src="./app.js"></script>
+    </head>
+    <body>
+        <div class="app-shell">
+            <header class="topbar">
+                <div class="page-header">
+                    <h1>Relohelper</h1>
+                    <p class="subtitle">
+                        Compare cities by cost, climate, and quality of life.
+                    </p>
+                </div>
+            </header>
+
+            <main class="dashboard-grid">
+                <section class="card filters-card">
+                    <div class="card-header filters-header">
+                        <div>
+                            <h2>Filters</h2>
+                            <p>Select countries first, then cities.</p>
+                        </div>
+                        <div class="filters-actions">
+                            <button
+                                id="compareBtn"
+                                class="btn btn-primary"
+                                type="button"
+                            >
+                                Compare
+                            </button>
+                            <button
+                                id="resetBtn"
+                                class="btn btn-secondary"
+                                type="button"
+                            >
+                                Reset
+                            </button>
+                            <button
+                                id="editFiltersBtn"
+                                class="btn btn-secondary hidden"
+                                type="button"
+                            >
+                                Edit filters
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="filtersBody" class="filters-body">
+                        <div class="filters-grid">
+                        <div class="filter-block">
+                            <label for="countrySearch">Search countries</label>
+                            <input
+                                id="countrySearch"
+                                class="text-input"
+                                type="text"
+                                placeholder="Type country name..."
+                            />
+                            <div id="countryList" class="selection-list"></div>
+                        </div>
+
+                        <div class="filter-block">
+                            <label for="citySearch">Search cities</label>
+                            <input
+                                id="citySearch"
+                                class="text-input"
+                                type="text"
+                                placeholder="Type city name..."
+                            />
+                            <div id="cityList" class="selection-list"></div>
+                        </div>
+                        </div>
+                    </div>
+
+                    <div class="selected-summary">
+                        <div>
+                            <div class="summary-head">
+                                <span class="summary-label"
+                                    >Selected countries</span
+                                >
+                                <span
+                                    id="selectedCountriesCount"
+                                    class="summary-count"
+                                    >0</span
+                                >
+                            </div>
+                            <div id="selectedCountries" class="chip-row"></div>
+                        </div>
+                        <div>
+                            <div class="summary-head">
+                                <span class="summary-label">Selected cities</span>
+                                <span
+                                    id="selectedCitiesCount"
+                                    class="summary-count"
+                                    >0</span
+                                >
+                                <span
+                                    id="selectedCitiesLimitHint"
+                                    class="summary-limit-hint hidden"
+                                    >Limit reached (20 cities)</span
+                                >
+                            </div>
+                            <div id="selectedCities" class="chip-row"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card cost-breakdown-card">
+                    <div class="card-header">
+                        <h2>Cost of Living</h2>
+                        <p>
+                            Click an item row to sort cities by that value.
+                        </p>
+                    </div>
+
+                    <div id="costBreakdownEmptyState" class="empty-state">
+                        Select cities and click <strong>Compare</strong> to
+                        build a cost breakdown table.
+                    </div>
+
+                    <div
+                        id="costBreakdownWrapper"
+                        class="table-wrapper cost-breakdown-wrapper hidden"
+                    >
+                        <table id="costBreakdownTable" class="cost-breakdown-table">
+                            <thead>
+                                <tr id="costBreakdownHeadRow">
+                                    <th>Item</th>
+                                </tr>
+                            </thead>
+                            <tbody id="costBreakdownBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="card chart-card">
+                    <div class="card-header">
+                        <h2>Climate</h2>
+                        <p>Monthly climate comparison across selected cities.</p>
+                    </div>
+
+                    <div id="chartEmptyState" class="empty-state">
+                        Climate charts will appear after comparison data is
+                        loaded.
+                    </div>
+
+                    <div id="climateChartsGrid" class="climate-charts-grid hidden">
+                        <div class="climate-chart-card climate-chart-card-wide">
+                            <div class="climate-chart-head">
+                                <h3>Temperature</h3>
+                                <p>High temperature uses solid lines, low temperature uses dashed lines.</p>
+                            </div>
+                            <div class="climate-chart-wrapper climate-chart-wrapper-wide">
+                                <canvas id="climateTemperatureChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="climate-chart-card">
+                            <div class="climate-chart-head">
+                                <h3>Sunshine Hours</h3>
+                            </div>
+                            <div class="climate-chart-wrapper">
+                                <canvas id="climateSunshineChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="climate-chart-card">
+                            <div class="climate-chart-head">
+                                <h3>Daylight Hours</h3>
+                            </div>
+                            <div class="climate-chart-wrapper">
+                                <canvas id="climateDaylightChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="climate-chart-card">
+                            <div class="climate-chart-head">
+                                <h3>Humidity</h3>
+                            </div>
+                            <div class="climate-chart-wrapper">
+                                <canvas id="climateHumidityChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="climate-chart-card">
+                            <div class="climate-chart-head">
+                                <h3>Rainfall</h3>
+                            </div>
+                            <div class="climate-chart-wrapper">
+                                <canvas id="climateRainfallChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="climate-chart-card">
+                            <div class="climate-chart-head">
+                                <h3>Wind</h3>
+                            </div>
+                            <div class="climate-chart-wrapper">
+                                <canvas id="climateWindChart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="climate-chart-card">
+                            <div class="climate-chart-head">
+                                <h3>UV Index</h3>
+                            </div>
+                            <div class="climate-chart-wrapper">
+                                <canvas id="climateUVIndexChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card indices-card">
+                    <div class="card-header">
+                        <h2>Numbeo Indices by City</h2>
+                        <p>Selected city comparison based on Numbeo city indices.</p>
+                    </div>
+
+                    <div id="numbeoIndicesEmptyState" class="empty-state">
+                        Select cities and click <strong>Compare</strong> to
+                        load city indices.
+                    </div>
+
+                    <div
+                        id="numbeoIndicesWrapper"
+                        class="table-wrapper indices-table-wrapper hidden"
+                    >
+                        <table id="numbeoIndicesTable" class="indices-table">
+                            <thead>
+                                <tr id="numbeoIndicesHeadRow">
+                                    <th>Index</th>
+                                </tr>
+                            </thead>
+                            <tbody id="numbeoIndicesBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="card indices-card">
+                    <div class="card-header">
+                        <h2>Numbeo Indices by Country</h2>
+                        <p>Country comparison for the countries of the selected cities.</p>
+                    </div>
+
+                    <div id="countryNumbeoIndicesEmptyState" class="empty-state">
+                        Select cities and click <strong>Compare</strong> to
+                        load country indices.
+                    </div>
+
+                    <div
+                        id="countryNumbeoIndicesWrapper"
+                        class="table-wrapper indices-table-wrapper hidden"
+                    >
+                        <table id="countryNumbeoIndicesTable" class="indices-table">
+                            <thead>
+                                <tr id="countryNumbeoIndicesHeadRow">
+                                    <th>Index</th>
+                                </tr>
+                            </thead>
+                            <tbody id="countryNumbeoIndicesBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="card indices-card">
+                    <div class="card-header indices-header-with-toggle">
+                        <div>
+                            <h2>The Legatum Prosperity Index</h2>
+                            <p>Compare selected countries by Legatum scores or ranks.</p>
+                        </div>
+                        <div class="table-mode-toggle" role="group" aria-label="Legatum metric mode">
+                            <button
+                                id="legatumScoreToggle"
+                                class="table-mode-toggle-btn is-active"
+                                type="button"
+                            >
+                                Score
+                            </button>
+                            <button
+                                id="legatumRankToggle"
+                                class="table-mode-toggle-btn"
+                                type="button"
+                            >
+                                Rank
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="legatumIndicesEmptyState" class="empty-state">
+                        Select cities and click <strong>Compare</strong> to
+                        load Legatum indices.
+                    </div>
+
+                    <div
+                        id="legatumIndicesWrapper"
+                        class="table-wrapper indices-table-wrapper hidden"
+                    >
+                        <table id="legatumIndicesTable" class="indices-table">
+                            <thead>
+                                <tr id="legatumIndicesHeadRow">
+                                    <th>Index</th>
+                                </tr>
+                            </thead>
+                            <tbody id="legatumIndicesBody"></tbody>
+                        </table>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </body>
+</html>
