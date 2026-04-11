@@ -630,7 +630,8 @@ function renderClimateChart() {
             color: city.color,
           }),
         ),
-        yTitle: "UV",
+        yTitle: "",
+        reserveYAxisTitleSpace: true,
       }),
     ),
   ];
@@ -656,10 +657,12 @@ function renderCostBreakdownTable() {
         const country =
           city.country ?? city.country_name ?? city.country_code ?? "";
         const displayCountry = getDisplayCountryName(country);
-        return `<th><span class="table-city-name" title="${escapeHtml(String(cityName))}">${escapeHtml(cityName)}</span><br><span class="table-city-meta" title="${escapeHtml(String(country))}">${escapeHtml(String(displayCountry))}</span></th>`;
+        const cityID = String(city.geoname_id ?? city.city_id ?? city.id ?? "");
+        return `<th><span class="table-header-trigger" data-header-kind="city" data-city-id="${escapeHtml(cityID)}"><span class="table-city-name">${escapeHtml(cityName)}</span><br><span class="table-city-meta">${escapeHtml(String(displayCountry))}</span></span></th>`;
       })
       .join("")}
   `;
+  bindHeaderInfoTooltips(els.costBreakdownHeadRow);
 
   els.costBreakdownBody.innerHTML = state.costBreakdownData
     .map((group) => {
@@ -838,6 +841,8 @@ function renderNumbeoIndicesTable() {
     getColumnMetaTitle: (city) =>
       city.country ?? city.country_name ?? city.country_code ?? "",
     getValue: (city, key) => toNumber(city.numbeo_indices?.[key]),
+    getHeaderDataAttrs: (city) =>
+      `data-header-kind="city" data-city-id="${escapeHtml(String(city.geoname_id ?? city.city_id ?? city.id ?? ""))}"`,
   });
 }
 
@@ -860,6 +865,8 @@ function renderCountryNumbeoIndicesTable() {
     getColumnMeta: () => "",
     getColumnMetaTitle: () => "",
     getValue: (country, key) => toNumber(country.numbeo_indices?.[key]),
+    getHeaderDataAttrs: (country) =>
+      `data-header-kind="country" data-country-code="${escapeHtml(String(country.country_code ?? ""))}"`,
   });
 }
 
@@ -891,6 +898,8 @@ function renderLegatumIndicesTable() {
           isRankMode ? "rank_2023" : "score_2023"
         ],
       ),
+    getHeaderDataAttrs: (country) =>
+      `data-header-kind="country" data-country-code="${escapeHtml(String(country.country_code ?? ""))}"`,
     getCellDataAttrs: (country, row) =>
       `data-legatum-row-key="${escapeHtml(row.key)}" data-legatum-country-code="${escapeHtml(String(country.country_code ?? ""))}"`,
   });
@@ -913,6 +922,7 @@ function renderNumbeoIndicesTableSection({
   getColumnMeta,
   getColumnMetaTitle,
   getValue,
+  getHeaderDataAttrs = null,
   getCellDataAttrs = null,
 }) {
   if (!data.length) {
@@ -930,14 +940,17 @@ function renderNumbeoIndicesTableSection({
       .map((item) => {
         const label = getColumnLabel(item);
         const meta = getColumnMeta(item);
-        const metaTitle = getColumnMetaTitle(item);
         const metaHtml = meta
-          ? `<br><span class="table-city-meta" title="${escapeHtml(String(metaTitle))}">${escapeHtml(String(meta))}</span>`
+          ? `<br><span class="table-city-meta">${escapeHtml(String(meta))}</span>`
           : "";
-        return `<th><span class="table-city-name" title="${escapeHtml(String(label))}">${escapeHtml(String(label))}</span>${metaHtml}</th>`;
+        const headerDataAttrs = getHeaderDataAttrs
+          ? getHeaderDataAttrs(item)
+          : "";
+        return `<th><span class="table-header-trigger" ${headerDataAttrs}><span class="table-city-name">${escapeHtml(String(label))}</span>${metaHtml}</span></th>`;
       })
       .join("")}
   `;
+  bindHeaderInfoTooltips(headRowEl);
 
   bodyEl.innerHTML = rows
     .map((row) => {
@@ -1049,6 +1062,147 @@ function renderNumbeoIndicesTableSection({
       applySort(key);
     });
   });
+}
+
+function bindHeaderInfoTooltips(container) {
+  container
+    .querySelectorAll(".table-header-trigger[data-header-kind]")
+    .forEach((cell) => {
+      cell.addEventListener("mouseenter", () => {
+        showHeaderInfoTooltip(cell);
+      });
+      cell.addEventListener("mousemove", (event) => {
+        positionHeaderInfoTooltip(event.clientX, event.clientY);
+      });
+      cell.addEventListener("mouseleave", hideHeaderInfoTooltip);
+    });
+}
+
+function showHeaderInfoTooltip(cell) {
+  const kind = cell.dataset.headerKind;
+  if (!kind) return;
+
+  const tooltipEl = getHeaderInfoTooltipElement();
+  const content = kind === "city"
+    ? buildCityHeaderTooltipContent(cell.dataset.cityId)
+    : buildCountryHeaderTooltipContent(cell.dataset.countryCode);
+
+  if (!content) {
+    tooltipEl.classList.remove("is-visible");
+    return;
+  }
+
+  tooltipEl.innerHTML = content;
+  tooltipEl.classList.add("is-visible");
+}
+
+function hideHeaderInfoTooltip() {
+  getHeaderInfoTooltipElement().classList.remove("is-visible");
+}
+
+function positionHeaderInfoTooltip(clientX, clientY) {
+  const tooltipEl = getHeaderInfoTooltipElement();
+  if (!tooltipEl.classList.contains("is-visible")) return;
+
+  const offset = 14;
+  const rect = tooltipEl.getBoundingClientRect();
+  let left = clientX + offset;
+  let top = clientY + offset;
+
+  if (left + rect.width > window.innerWidth - 12) {
+    left = clientX - rect.width - offset;
+  }
+  if (top + rect.height > window.innerHeight - 12) {
+    top = clientY - rect.height - offset;
+  }
+
+  tooltipEl.style.left = `${Math.max(12, left)}px`;
+  tooltipEl.style.top = `${Math.max(12, top)}px`;
+}
+
+function getHeaderInfoTooltipElement() {
+  let tooltipEl = document.querySelector(".header-info-tooltip");
+  if (!tooltipEl) {
+    tooltipEl = document.createElement("div");
+    tooltipEl.className = "header-info-tooltip";
+    document.body.appendChild(tooltipEl);
+  }
+  return tooltipEl;
+}
+
+function buildCityHeaderTooltipContent(cityID) {
+  if (!cityID) return "";
+
+  const city = state.comparisonData.find(
+    (item) => String(item.geoname_id ?? item.city_id ?? item.id ?? "") === String(cityID),
+  );
+  if (!city) return "";
+
+  const cityName = city.city ?? city.name ?? "City";
+  const population = formatCompactPopulation(city.population);
+  const utcOffset = formatUTCOffset(city.timezone);
+
+  return `
+    <div class="header-info-title">${escapeHtml(cityName)}</div>
+    <div class="header-info-row"><span class="header-info-key">Pop.</span><span class="header-info-value">${escapeHtml(population)}</span></div>
+    <div class="header-info-row"><span class="header-info-key">UTC</span><span class="header-info-value">${escapeHtml(utcOffset)}</span></div>
+  `;
+}
+
+function buildCountryHeaderTooltipContent(countryCode) {
+  if (!countryCode) return "";
+
+  const country = state.countryComparisonData.find(
+    (item) => String(item.country_code ?? "") === String(countryCode),
+  );
+  if (!country) return "";
+
+  const countryName =
+    country.country ?? country.country_name ?? country.country_code ?? "Country";
+  const population = formatCompactPopulation(country.population);
+  const area = formatCompactArea(country.area);
+
+  return `
+    <div class="header-info-title">${escapeHtml(countryName)}</div>
+    <div class="header-info-row"><span class="header-info-key">Pop.</span><span class="header-info-value">${escapeHtml(population)}</span></div>
+    <div class="header-info-row"><span class="header-info-key">Area</span><span class="header-info-value">${escapeHtml(area)}</span></div>
+  `;
+}
+
+function formatCompactPopulation(value) {
+  const n = toNumber(value);
+  if (n == null) return "—";
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(n);
+}
+
+function formatCompactArea(value) {
+  const n = toNumber(value);
+  if (n == null) return "—";
+  return `${new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(n)} km²`;
+}
+
+function formatUTCOffset(timezone) {
+  if (!timezone) return "—";
+
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      timeZoneName: "shortOffset",
+    }).formatToParts(new Date());
+    const timeZoneName =
+      parts.find((part) => part.type === "timeZoneName")?.value ?? "";
+
+    if (!timeZoneName) return String(timezone);
+    return timeZoneName.replace("GMT", "UTC");
+  } catch {
+    return String(timezone);
+  }
 }
 
 function buildCostBreakdownDataset(cities) {
@@ -1266,6 +1420,7 @@ function buildClimateChartConfig({
   labels,
   datasets,
   yTitle,
+  reserveYAxisTitleSpace = false,
   showLegend = false,
 }) {
   return {
@@ -1357,9 +1512,9 @@ function buildClimateChartConfig({
             color: "#64748b",
           },
           title: {
-            display: true,
-            text: yTitle,
-            color: "#64748b",
+            display: Boolean(yTitle) || reserveYAxisTitleSpace,
+            text: yTitle || " ",
+            color: yTitle ? "#64748b" : "rgba(0,0,0,0)",
             font: {
               size: 12,
               weight: "600",
@@ -1457,23 +1612,38 @@ function renderClimateTooltip(context, options) {
     );
     const highValue = toNumber(highDataset?.data?.[dataPoint.dataIndex]);
     const lowValue = toNumber(lowDataset?.data?.[dataPoint.dataIndex]);
+    const highParts = formatTooltipValueParts(highValue, "°C");
+    const lowParts = formatTooltipValueParts(lowValue, "°C");
+    const highHtml = `
+      <span class="chart-tooltip-value-number">${escapeHtml(highParts.value)}</span>${highParts.unit ? ` <span class="chart-tooltip-unit">${escapeHtml(highParts.unit)}</span>` : ""}
+    `;
+    const lowHtml = `
+      <span class="chart-tooltip-value-number">${escapeHtml(lowParts.value)}</span>${lowParts.unit ? ` <span class="chart-tooltip-unit">${escapeHtml(lowParts.unit)}</span>` : ""}
+    `;
     contentHtml = `
       <div class="chart-tooltip-city">${escapeHtml(cityLabel)}</div>
       <div class="chart-tooltip-text">${escapeHtml(monthLabel)}:</div>
       <div class="chart-tooltip-metric">
         <span class="chart-tooltip-key">High:</span>
-        <span class="chart-tooltip-value">${escapeHtml(formatTooltipValue(highValue, "°C"))}</span>
+        <span class="chart-tooltip-value">${highHtml}</span>
       </div>
       <div class="chart-tooltip-metric">
         <span class="chart-tooltip-key">Low:</span>
-        <span class="chart-tooltip-value">${escapeHtml(formatTooltipValue(lowValue, "°C"))}</span>
+        <span class="chart-tooltip-value">${lowHtml}</span>
       </div>
     `;
   } else {
     const value = toNumber(dataPoint.parsed?.y);
+    const valueParts = formatTooltipValueParts(value, options.yTitle);
+    const valueHtml = valueParts.unit
+      ? `${escapeHtml(valueParts.value)} <span class="chart-tooltip-unit">${escapeHtml(valueParts.unit)}</span>`
+      : escapeHtml(valueParts.value);
     contentHtml = `
       <div class="chart-tooltip-city">${escapeHtml(cityLabel)}</div>
-      <div class="chart-tooltip-text">${escapeHtml(monthLabel)}: ${escapeHtml(formatTooltipValue(value, options.yTitle))}</div>
+      <div class="chart-tooltip-metric chart-tooltip-metric-inline">
+        <span class="chart-tooltip-key">${escapeHtml(monthLabel)}</span>
+        <span class="chart-tooltip-value">${valueHtml}</span>
+      </div>
     `;
   }
 
@@ -1522,6 +1692,27 @@ function formatTooltipValue(value, unit) {
     return `${raw}${unit}`;
   }
   return `${raw} ${unit}`;
+}
+
+function formatTooltipValueParts(value, unit) {
+  if (value == null) {
+    return { value: "—", unit: "" };
+  }
+
+  const raw = String(value);
+  if (unit === "%" || unit === "mm" || unit === "°C") {
+    return { value: raw, unit };
+  }
+  if (unit === "" || unit === "UV") {
+    return { value: raw, unit: "" };
+  }
+  if (unit === "km/h") {
+    return { value: raw, unit: "km/h" };
+  }
+  if (unit === "Hours") {
+    return { value: raw, unit: "h" };
+  }
+  return { value: raw, unit };
 }
 
 function formatIndexValue(value, row = null) {
