@@ -363,7 +363,7 @@ function renderCountries() {
           <input type="checkbox" data-country-code="${escapeHtml(code)}" ${checked} />
           <div class="selection-item-main">
             <span class="selection-title">${escapeHtml(name)}</span>
-            <span class="selection-subtitle">${escapeHtml(code)}</span>
+            <span class="selection-subtitle notranslate" translate="no">${escapeHtml(code)}</span>
           </div>
         </label>
       `;
@@ -636,7 +636,7 @@ function renderCostBreakdownTable() {
                 isSalaryRow ? "high" : "low",
               );
 
-              return `<td class="${cellClass}">${escapeHtml(formatCostValue(value, { isMortgageRate: isMortgageRateRow }))}</td>`;
+              return `<td class="${cellClass} notranslate" translate="no">${escapeHtml(formatCostValue(value, { isMortgageRate: isMortgageRateRow }))}</td>`;
             })
             .join("");
 
@@ -855,7 +855,12 @@ function renderNumbeoIndicesTableSection({
             isHigherBetter ? "high" : "low",
           );
 
-          return `<td class="${cellClass}" ${cellDataAttrs}>${escapeHtml(formatIndexValue(value, row))}</td>`;
+          const translateAttrs =
+            row.format === "currency"
+              ? ' class="' + cellClass + ' notranslate" translate="no"'
+              : ` class="${cellClass}"`;
+
+          return `<td${translateAttrs} ${cellDataAttrs}>${escapeHtml(formatIndexValue(value, row))}</td>`;
         })
         .join("");
 
