@@ -29,8 +29,8 @@ Performance comparison between Go and Python implementations is documented [here
 
 ## Public Access
 
-- Dashboard UI: `https://relohelper.pro/`
-- Swagger UI: `https://relohelper.pro/swagger`
+- Dashboard UI: [https://relohelper.pro/](https://relohelper.pro/)
+- Swagger UI: [https://relohelper.pro/swagger](https://relohelper.pro/swagger)
 - `/metrics` is internal-only
 - Grafana is available through SSH tunneling only
 
