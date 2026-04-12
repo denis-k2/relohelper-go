@@ -58,7 +58,8 @@ function getHeaderInfoTooltipElement() {
   let tooltipEl = document.querySelector(".header-info-tooltip");
   if (!tooltipEl) {
     tooltipEl = document.createElement("div");
-    tooltipEl.className = "header-info-tooltip";
+    tooltipEl.className = "header-info-tooltip notranslate";
+    tooltipEl.setAttribute("translate", "no");
     document.body.appendChild(tooltipEl);
   }
   return tooltipEl;
@@ -183,7 +184,8 @@ function getClimateTooltipElement(chart) {
 
   if (!tooltipEl) {
     tooltipEl = document.createElement("div");
-    tooltipEl.className = "chart-tooltip";
+    tooltipEl.className = "chart-tooltip notranslate";
+    tooltipEl.setAttribute("translate", "no");
     parent.appendChild(tooltipEl);
   }
 
@@ -274,7 +276,8 @@ function getLegatumTooltipElement() {
   let tooltipEl = document.querySelector(".legatum-tooltip");
   if (!tooltipEl) {
     tooltipEl = document.createElement("div");
-    tooltipEl.className = "legatum-tooltip";
+    tooltipEl.className = "legatum-tooltip notranslate";
+    tooltipEl.setAttribute("translate", "no");
     document.body.appendChild(tooltipEl);
   }
   return tooltipEl;
