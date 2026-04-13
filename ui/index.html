@@ -115,11 +115,22 @@
                 </section>
 
                 <section class="card cost-breakdown-card">
-                    <div class="card-header">
-                        <h2>Cost of Living</h2>
-                        <p>
-                            Click an item row to sort cities by that value.
-                        </p>
+                    <div class="card-header cost-header">
+                        <div class="cost-header-main">
+                            <h2>Cost of Living</h2>
+                            <p>
+                                Click an item row to sort cities by that value.
+                            </p>
+                        </div>
+                        <div class="cost-currency-controls">
+                            <select id="costCurrencySelect" class="cost-currency-select notranslate" translate="no">
+                                <option value="USD">USD</option>
+                            </select>
+                            <div class="cost-currency-helper">
+                                <span class="cost-currency-base">Converted from USD</span>
+                                <span id="costCurrencyStatus" class="cost-currency-status hidden"></span>
+                            </div>
+                        </div>
                     </div>
 
                     <div id="costBreakdownEmptyState" class="empty-state">

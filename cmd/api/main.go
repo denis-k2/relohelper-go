@@ -16,6 +16,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"github.com/denis-k2/relohelper-go/internal/data"
+	"github.com/denis-k2/relohelper-go/internal/exchangerates"
 	"github.com/denis-k2/relohelper-go/internal/mailer"
 	"github.com/denis-k2/relohelper-go/internal/vcs"
 )
@@ -56,15 +57,19 @@ type config struct {
 		password string
 		sender   string
 	}
+	exchangeRates struct {
+		appID string
+	}
 }
 
 type application struct {
-	config config
-	logger *slog.Logger
-	db     *sql.DB
-	models data.Models
-	mailer mailer.Mailer
-	wg     sync.WaitGroup
+	config        config
+	logger        *slog.Logger
+	db            *sql.DB
+	models        data.Models
+	mailer        mailer.Mailer
+	exchangeRates *exchangerates.Service
+	wg            sync.WaitGroup
 }
 
 func main() {
@@ -97,11 +102,12 @@ func run() error {
 	setDBStatsProvider(db)
 
 	app := &application{
-		config: cfg,
-		logger: logger,
-		db:     db,
-		models: data.NewModels(db),
-		mailer: mailer.NewSMTPMailer(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
+		config:        cfg,
+		logger:        logger,
+		db:            db,
+		models:        data.NewModels(db),
+		mailer:        mailer.NewSMTPMailer(cfg.smtp.host, cfg.smtp.port, cfg.smtp.username, cfg.smtp.password, cfg.smtp.sender),
+		exchangeRates: exchangerates.NewService(logger, cfg.exchangeRates.appID),
 	}
 
 	err = app.serve()
@@ -136,6 +142,7 @@ func parseFlags() (config, error) {
 	flag.StringVar(&cfg.smtp.username, "smtp-username", os.Getenv("RELOHELPER_SMTP_USERNAME"), "SMTP username")
 	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("RELOHELPER_SMTP_PASSWORD"), "SMTP password")
 	flag.StringVar(&cfg.smtp.sender, "smtp-sender", os.Getenv("RELOHELPER_SMTP_SENDER"), "SMTP sender")
+	flag.StringVar(&cfg.exchangeRates.appID, "exchange-rates-app-id", os.Getenv("RELOHELPER_EXCHANGE_RATES_APP_ID"), "Open Exchange Rates app ID")
 
 	displayVersion := flag.Bool("version", false, "Display version and exit")
 

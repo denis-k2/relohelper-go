@@ -64,6 +64,61 @@ code {
     max-width: 720px;
 }
 
+.cost-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.cost-header-main {
+    flex: 1 1 auto;
+}
+
+.cost-currency-controls {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    min-width: 124px;
+    margin-top: 1px;
+}
+
+.cost-currency-select {
+    min-width: 84px;
+    padding: 6px 28px 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text);
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+}
+
+.cost-currency-select:focus,
+.cost-currency-select:focus-visible {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.14);
+}
+
+.cost-currency-helper {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    text-align: right;
+}
+
+.cost-currency-base,
+.cost-currency-status {
+    font-size: 11px;
+    line-height: 1.35;
+    color: var(--muted);
+}
+
 h1 {
     margin: 0;
     font-size: 38px;
@@ -1101,6 +1156,16 @@ tbody tr:hover {
 
     .page-header {
         max-width: none;
+    }
+
+    .cost-header {
+        flex-direction: column;
+    }
+
+    .cost-currency-controls,
+    .cost-currency-helper {
+        align-items: flex-start;
+        text-align: left;
     }
 
     .filters-header {

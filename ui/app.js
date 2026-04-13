@@ -16,6 +16,10 @@ const state = {
   climateCharts: [],
   climateHiddenCities: new Set(),
   climateHoveredCityKey: null,
+  exchangeRates: null,
+  selectedCurrency: "USD",
+  exchangeRatesUnavailable: false,
+  exchangeRatesStale: false,
 };
 
 const numbeoIndexRows = [
@@ -76,6 +80,8 @@ const els = {
   costBreakdownWrapper: document.getElementById("costBreakdownWrapper"),
   costBreakdownHeadRow: document.getElementById("costBreakdownHeadRow"),
   costBreakdownBody: document.getElementById("costBreakdownBody"),
+  costCurrencySelect: document.getElementById("costCurrencySelect"),
+  costCurrencyStatus: document.getElementById("costCurrencyStatus"),
   numbeoIndicesEmptyState: document.getElementById("numbeoIndicesEmptyState"),
   numbeoIndicesWrapper: document.getElementById("numbeoIndicesWrapper"),
   numbeoIndicesHeadRow: document.getElementById("numbeoIndicesHeadRow"),
@@ -110,6 +116,17 @@ function bindEvents() {
   els.compareBtn.addEventListener("click", loadComparison);
   els.resetBtn.addEventListener("click", resetDashboard);
   els.editFiltersBtn.addEventListener("click", expandFilters);
+  els.costCurrencySelect.addEventListener("change", (event) => {
+    const nextCode = event.target.value || "USD";
+    state.selectedCurrency = nextCode;
+    updateCostCurrencyUI();
+    if (state.costBreakdownData.length) {
+      renderCostBreakdownTable();
+    }
+    if (state.countryComparisonData.length) {
+      renderCountryNumbeoIndicesTable();
+    }
+  });
   els.legatumScoreToggle.addEventListener("click", () =>
     setLegatumMetricMode("score"),
   );
@@ -119,6 +136,8 @@ function bindEvents() {
 }
 
 async function loadInitialData() {
+  const exchangeRatesPromise = loadExchangeRates();
+
   try {
     const res = await fetch("/cities");
     if (!res.ok) throw new Error(`Failed to load cities: ${res.status}`);
@@ -136,11 +155,14 @@ async function loadInitialData() {
     renderSelectedCountries();
     renderSelectedCities();
     updateMetrics();
+    updateCostCurrencyUI();
   } catch (error) {
     console.error(error);
     els.countryList.innerHTML = `<div class="selection-list-empty">Failed to load countries.</div>`;
     els.cityList.innerHTML = `<div class="selection-list-empty">Failed to load cities.</div>`;
   }
+
+  await exchangeRatesPromise;
 }
 
 function renderTableHeaderRow({
@@ -624,19 +646,28 @@ function renderCostBreakdownTable() {
             ? state.breakdownSort.direction
             : null;
           const scale = buildHeatmapScale(
-            item.values.map((value) => value?.cost),
+            item.values.map((value) =>
+              getRenderedCostAmount(value, { isMortgageRate: isMortgageRateRow }),
+            ),
             item.values.length,
           );
           const cells = item.values
             .map((value) => {
+              const renderedAmount = getRenderedCostAmount(value, {
+                isMortgageRate: isMortgageRateRow,
+              });
               let cellClass = "cost-value";
               cellClass += getHeatmapClass(
-                value?.cost,
+                renderedAmount,
                 scale,
                 isSalaryRow ? "high" : "low",
               );
 
-              return `<td class="${cellClass} notranslate" translate="no">${escapeHtml(formatCostValue(value, { isMortgageRate: isMortgageRateRow }))}</td>`;
+              return `<td class="${cellClass} notranslate" translate="no">${escapeHtml(formatCostValue(value, {
+                isMortgageRate: isMortgageRateRow,
+                amount: renderedAmount,
+                currencyCode: state.selectedCurrency,
+              }))}</td>`;
             })
             .join("");
 
@@ -670,7 +701,7 @@ function renderCostBreakdownTable() {
             </button>
           </td>
           <td class="cost-group-cell cost-group-cell-fill" colspan="${state.comparisonData.length}">
-            <span class="cost-group-count">${group.items.length} items</span>
+            <span class="cost-group-count notranslate" translate="no">${group.items.length} items</span>
           </td>
         </tr>
         ${groupRows}
@@ -730,6 +761,7 @@ function renderNumbeoIndicesTable() {
 }
 
 function renderCountryNumbeoIndicesTable() {
+  const currencyCode = state.selectedCurrency || "USD";
   renderNumbeoIndicesTableSection({
     data: state.countryComparisonData,
     emptyStateEl: els.countryNumbeoIndicesEmptyState,
@@ -737,7 +769,15 @@ function renderCountryNumbeoIndicesTable() {
     headRowEl: els.countryNumbeoIndicesHeadRow,
     bodyEl: els.countryNumbeoIndicesBody,
     headLabel: "Index",
-    rows: countryNumbeoIndexRows,
+    rows: countryNumbeoIndexRows.map((row) =>
+      row.key === "avg_salary_usd"
+        ? {
+            ...row,
+            label: `Average Salary (${currencyCode})`,
+            currencyCode,
+          }
+        : row,
+    ),
     sortState: state.countryIndicesSort,
     keyDataAttr: "data-country-index-key",
     applySort: applyCountryIndicesSort,
@@ -746,7 +786,12 @@ function renderCountryNumbeoIndicesTable() {
         country.country ?? country.country_name ?? country.country_code ?? "Country",
       ),
     getColumnMeta: () => "",
-    getValue: (country, key) => toNumber(country.numbeo_indices?.[key]),
+    getValue: (country, key) => {
+      const rawValue = toNumber(country.numbeo_indices?.[key]);
+      if (key !== "avg_salary_usd") return rawValue;
+
+      return convertUSDAmount(rawValue, getSelectedCurrencyRate());
+    },
     getHeaderDataAttrs: (country) =>
       `data-header-kind="country" data-country-code="${escapeHtml(String(country.country_code ?? ""))}"`,
   });
@@ -991,6 +1036,7 @@ function resetDashboard() {
   state.legatumMetricMode = "score";
   state.climateHiddenCities.clear();
   state.climateHoveredCityKey = null;
+  state.selectedCurrency = "USD";
 
   els.countrySearch.value = "";
   els.citySearch.value = "";
@@ -1009,6 +1055,7 @@ function resetDashboard() {
   destroyClimateCharts();
 
   updateMetrics();
+  updateCostCurrencyUI();
   expandFilters();
 }
 
@@ -1265,4 +1312,78 @@ function formatFilterCityName(city) {
   }
 
   return `${escapeHtml(cityName)} <span class="selection-title-meta">${escapeHtml(shortStateCode)}</span>`;
+}
+
+async function loadExchangeRates() {
+  try {
+    const res = await fetch("/exchange-rates");
+    if (!res.ok) {
+      throw new Error(`Failed to load exchange rates: ${res.status}`);
+    }
+
+    const data = await res.json();
+    state.exchangeRates = data;
+    state.exchangeRatesUnavailable = false;
+    state.exchangeRatesStale = Boolean(data?.stale);
+    populateCostCurrencyOptions(data?.currencies ?? {});
+  } catch (error) {
+    console.error(error);
+    state.exchangeRates = null;
+    state.exchangeRatesUnavailable = true;
+    state.exchangeRatesStale = false;
+    populateCostCurrencyOptions({});
+  }
+
+  updateCostCurrencyUI();
+  if (state.costBreakdownData.length) {
+    renderCostBreakdownTable();
+  }
+  if (state.countryComparisonData.length) {
+    renderCountryNumbeoIndicesTable();
+  }
+}
+
+function populateCostCurrencyOptions(currencies) {
+  const current = state.selectedCurrency || "USD";
+  const codes = Object.keys(currencies);
+  const supportedCodes = codes.length > 0 ? codes : ["USD"];
+
+  els.costCurrencySelect.innerHTML = supportedCodes
+    .map((code) => `<option value="${escapeHtml(code)}">${escapeHtml(code)}</option>`)
+    .join("");
+
+  if (!supportedCodes.includes(current)) {
+    state.selectedCurrency = "USD";
+  }
+
+  els.costCurrencySelect.value = state.selectedCurrency;
+  els.costCurrencySelect.disabled = state.exchangeRatesUnavailable;
+}
+
+function updateCostCurrencyUI() {
+  const notes = [];
+  if (state.exchangeRatesUnavailable) {
+    notes.push("Currency conversion unavailable. Showing USD.");
+  } else if (state.exchangeRatesStale) {
+    notes.push("Using cached exchange rates.");
+  }
+
+  els.costCurrencyStatus.textContent = notes.join(" ");
+  els.costCurrencyStatus.classList.toggle("hidden", notes.length === 0);
+  els.costCurrencySelect.value = state.selectedCurrency;
+}
+
+function getSelectedCurrencyRate() {
+  return toNumber(
+    state.exchangeRates?.currencies?.[state.selectedCurrency]?.rate,
+  ) ?? toNumber(state.exchangeRates?.currencies?.USD?.rate) ?? 1;
+}
+
+function getRenderedCostAmount(value, options = {}) {
+  if (!value) return null;
+  const amountUSD = toNumber(value.cost);
+  if (amountUSD == null) return null;
+  if (options.isMortgageRate) return amountUSD;
+
+  return convertUSDAmount(amountUSD, getSelectedCurrencyRate());
 }
