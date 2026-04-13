@@ -57,7 +57,7 @@ code {
 }
 
 .topbar {
-    margin-bottom: 24px;
+    margin-bottom: 32px;
 }
 
 .page-header {
@@ -128,13 +128,29 @@ h1 {
     font-weight: 700;
 }
 
+.brand-b {
+    margin: 0 0 10px 0;
+    font-size: 3rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #0f172a;
+}
+
+.brand-accent {
+    color: #3b82f6;
+}
+
+.brand:hover .brand-accent {
+    color: #1d4ed8;
+}
+
 .subtitle {
-    margin: 12px 0 0 0;
-    color: var(--muted);
+    margin: 8px 0 0 0;
+    color: #64748b;
     max-width: 560px;
-    font-size: 15px;
-    line-height: 1.45;
-    font-weight: 400;
+    font-size: 1.1rem;
+    line-height: 1.5;
+    font-weight: 500;
 }
 
 .btn {
