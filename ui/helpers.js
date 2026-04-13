@@ -133,12 +133,7 @@ function formatTooltipValueParts(value, unit) {
 function formatIndexValue(value, row = null) {
   if (value == null) return "—";
   if (row?.format === "currency") {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      maximumFractionDigits: value >= 100 ? 0 : 2,
-      minimumFractionDigits: value >= 100 ? 0 : 2,
-    }).format(value);
+    return formatCurrency(value, row.currencyCode ?? "USD");
   }
   return String(value);
 }
@@ -146,6 +141,49 @@ function formatIndexValue(value, row = null) {
 function fmt(value) {
   const n = toNumber(value);
   return n == null ? "—" : n.toFixed(1);
+}
+
+const currencyLocales = {
+  USD: "en-US",
+  EUR: "de-DE",
+  GBP: "en-GB",
+  RUB: "ru-RU",
+  CAD: "en-CA",
+  AUD: "en-AU",
+  JPY: "ja-JP",
+  CNY: "zh-CN",
+  INR: "en-IN",
+  BRL: "pt-BR",
+};
+
+const currencyFractionDigits = {
+  USD: 1,
+  EUR: 1,
+  GBP: 1,
+  CAD: 1,
+  AUD: 1,
+  CNY: 1,
+  BRL: 1,
+  RUB: 0,
+  JPY: 0,
+  INR: 0,
+};
+
+function formatCurrency(value, currencyCode) {
+  const amount = toNumber(value);
+  if (amount == null) return "—";
+
+  const code = String(currencyCode || "USD").toUpperCase();
+  const locale = currencyLocales[code] ?? currencyLocales.USD;
+  const fractionDigits =
+    currencyFractionDigits[code] ?? currencyFractionDigits.USD;
+
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: code,
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+  }).format(amount);
 }
 
 function formatCostValue(value, options = {}) {
@@ -157,18 +195,21 @@ function formatCostValue(value, options = {}) {
     return `${n.toFixed(2)}%`;
   }
 
-  const fractionDigits = n >= 100 ? 0 : 2;
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: value.currency ?? "USD",
-    maximumFractionDigits: fractionDigits,
-    minimumFractionDigits: fractionDigits,
-  }).format(n);
+  const amount = toNumber(options.amount ?? n);
+  if (amount == null) return "—";
+  return formatCurrency(amount, options.currencyCode ?? value.currency ?? "USD");
 }
 
 function formatLegatumAxisMidValue(value) {
   if (!Number.isFinite(value)) return "—";
   return String(Math.round(value));
+}
+
+function convertUSDAmount(amountUSD, rate) {
+  const amount = toNumber(amountUSD);
+  const fxRate = toNumber(rate);
+  if (amount == null || fxRate == null) return null;
+  return amount * fxRate;
 }
 
 Object.assign(window, {
@@ -183,6 +224,8 @@ Object.assign(window, {
   formatTooltipValueParts,
   formatIndexValue,
   fmt,
+  formatCurrency,
   formatCostValue,
   formatLegatumAxisMidValue,
+  convertUSDAmount,
 });

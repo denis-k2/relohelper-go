@@ -32,6 +32,7 @@ func (app *application) routes() http.Handler {
 	router.Get("/favicon.svg", app.dashboardFaviconHandler)
 	router.Get("/healthcheck", app.healthcheckHandler)
 	router.Get("/readyz", app.readinessHandler)
+	router.Get("/exchange-rates", app.exchangeRatesHandler)
 	if app.config.metrics.port == 0 {
 		router.Method(http.MethodGet, "/metrics", promhttp.Handler())
 	}
