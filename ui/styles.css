@@ -137,7 +137,8 @@ h1 {
 }
 
 .brand-link {
-    display: inline-block;
+    display: block;
+    width: fit-content;
     text-decoration: none;
 }
 
