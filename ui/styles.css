@@ -136,6 +136,11 @@ h1 {
     color: #0f172a;
 }
 
+.brand-link {
+    display: inline-block;
+    text-decoration: none;
+}
+
 .brand-accent {
     color: #3b82f6;
 }
