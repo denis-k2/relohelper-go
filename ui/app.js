@@ -557,7 +557,12 @@ function renderSelectedCities() {
         if (!id) return;
 
         state.selectedCityIds.delete(id);
+        if (state.comparisonData.length) {
+          syncSelectedCountriesToSelectedCities();
+        }
         renderCities();
+        renderCountries();
+        renderSelectedCountries();
         renderSelectedCities();
         updateMetrics();
         applyLoadedComparisonSelection();
@@ -588,6 +593,7 @@ async function loadComparison() {
         ? data.data
         : [];
     state.countryComparisonData = await loadCountryComparisonData(state.comparisonData);
+    syncSelectedCountriesToComparedCities();
     state.breakdownSort = null;
     state.climateHiddenCities.clear();
     state.climateHoveredCityKey = null;
@@ -596,6 +602,8 @@ async function loadComparison() {
     state.costBreakdownData = buildCostBreakdownDataset(state.comparisonData);
 
     renderCostBreakdownTable();
+    renderCountries();
+    renderSelectedCountries();
     renderClimateChart();
     renderNumbeoIndicesTable();
     renderCountryNumbeoIndicesTable();
@@ -1181,6 +1189,39 @@ function applyLoadedComparisonSelection() {
   renderCountryNumbeoIndicesTable();
   renderLegatumIndicesTable();
   renderClimateChart();
+}
+
+function syncSelectedCountriesToComparedCities() {
+  const comparedCountryCodes = Array.from(
+    new Set(
+      state.comparisonData
+        .map((city) => city.country_code)
+        .filter(Boolean),
+    ),
+  );
+
+  if (comparedCountryCodes.length === 0) return;
+
+  state.selectedCountryCodes = new Set(comparedCountryCodes);
+  filterCitiesForSelectedCountries();
+}
+
+function syncSelectedCountriesToSelectedCities() {
+  const selectedCityIDs = new Set(Array.from(state.selectedCityIds));
+  const selectedCityCountryCodes = new Set(
+    state.allCities
+      .filter((city) =>
+        selectedCityIDs.has(String(city.geoname_id ?? city.city_id ?? city.id ?? "")),
+      )
+      .map((city) => city.country_code)
+      .filter(Boolean),
+  );
+
+  for (const code of Array.from(state.selectedCountryCodes)) {
+    if (!selectedCityCountryCodes.has(code)) {
+      state.selectedCountryCodes.delete(code);
+    }
+  }
 }
 
 function sortComparisonDataByCostParam(param, direction) {
