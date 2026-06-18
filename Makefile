@@ -64,8 +64,14 @@ db/sqlc/generate:
 .PHONY: db/sqlc/check
 db/sqlc/check:
 	@echo 'Checking sqlc generated database code...'
-	@sqlc generate
-	@git diff --exit-code -- internal/db
+	@before=$$(mktemp); after=$$(mktemp); \
+		git diff -- internal/db/*.go > $${before}; \
+		sqlc generate; \
+		git diff -- internal/db/*.go > $${after}; \
+		diff -u $${before} $${after}; \
+		status=$$?; \
+		rm -f $${before} $${after}; \
+		exit $${status}
 
 # ==================================================================================== #
 # QUALITY CONTROL

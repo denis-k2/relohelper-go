@@ -10,51 +10,36 @@ import (
 )
 
 const getAvgClimateByCityIDs = `-- name: GetAvgClimateByCityIDs :many
-WITH climate_rows AS (
-    SELECT geoname_id, month, high_temp, low_temp, pressure, wind_speed, humidity, rainfall, rainfall_days, snowfall, snowfall_days, sea_temp, daylight, sunshine, sunshine_days, uv_index, cloud_cover, visibility, updated_date, updated_by
-    FROM avg_climate ac
-    WHERE ac.geoname_id = ANY($1::bigint[])
-),
-climate_stats AS (
-    SELECT
-        geoname_id,
-        COUNT(*) AS row_count,
-        COUNT(DISTINCT month) AS unique_month_count,
-        MIN(month) AS min_month,
-        MAX(month) AS max_month
-    FROM climate_rows
-    GROUP BY geoname_id
-),
-climate_data AS (
-    SELECT
-        cr.geoname_id,
-        m.metric_key,
-        jsonb_agg(m.metric_value ORDER BY cr.month) AS month_values
-    FROM climate_rows cr
-    CROSS JOIN LATERAL jsonb_each(
-        to_jsonb(cr)
-            - 'geoname_id'
-            - 'month'
-            - 'updated_date'
-            - 'updated_by'
-    ) AS m(metric_key, metric_value)
-    GROUP BY cr.geoname_id, m.metric_key
-)
 SELECT
-    s.geoname_id,
+    ac.geoname_id,
     CASE
-        WHEN s.row_count = 12
-            AND s.unique_month_count = 12
-            AND s.min_month = 1
-            AND s.max_month = 12
-        THEN (
-            SELECT jsonb_object_agg(cd.metric_key, cd.month_values)
-            FROM climate_data cd
-            WHERE cd.geoname_id = s.geoname_id
+        WHEN COUNT(*) = 12
+            AND COUNT(DISTINCT ac.month) = 12
+            AND MIN(ac.month) = 1
+            AND MAX(ac.month) = 12
+        THEN jsonb_build_object(
+            'high_temp', jsonb_agg(ac.high_temp ORDER BY ac.month),
+            'low_temp', jsonb_agg(ac.low_temp ORDER BY ac.month),
+            'pressure', jsonb_agg(ac.pressure ORDER BY ac.month),
+            'wind_speed', jsonb_agg(ac.wind_speed ORDER BY ac.month),
+            'humidity', jsonb_agg(ac.humidity ORDER BY ac.month),
+            'rainfall', jsonb_agg(ac.rainfall ORDER BY ac.month),
+            'rainfall_days', jsonb_agg(ac.rainfall_days ORDER BY ac.month),
+            'snowfall', jsonb_agg(ac.snowfall ORDER BY ac.month),
+            'snowfall_days', jsonb_agg(ac.snowfall_days ORDER BY ac.month),
+            'sea_temp', jsonb_agg(ac.sea_temp ORDER BY ac.month),
+            'daylight', jsonb_agg(ac.daylight ORDER BY ac.month),
+            'sunshine', jsonb_agg(ac.sunshine ORDER BY ac.month),
+            'sunshine_days', jsonb_agg(ac.sunshine_days ORDER BY ac.month),
+            'uv_index', jsonb_agg(ac.uv_index ORDER BY ac.month),
+            'cloud_cover', jsonb_agg(ac.cloud_cover ORDER BY ac.month),
+            'visibility', jsonb_agg(ac.visibility ORDER BY ac.month)
         )
         ELSE jsonb_build_object('__invalid_structure__', true)
     END AS avg_climate
-FROM climate_stats s
+FROM avg_climate ac
+WHERE ac.geoname_id = ANY($1::bigint[])
+GROUP BY ac.geoname_id
 `
 
 type GetAvgClimateByCityIDsRow struct {
