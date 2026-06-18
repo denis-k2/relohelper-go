@@ -1089,7 +1089,7 @@ func TestCountriesBatchByCodesLimit(t *testing.T) {
 	defer ts.Close()
 
 	rawCodes := make([]string, 0, 21)
-	for i := 0; i < 21; i++ {
+	for i := range 21 {
 		rawCodes = append(rawCodes, fmt.Sprintf("C%02d", i))
 	}
 

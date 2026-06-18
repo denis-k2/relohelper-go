@@ -90,7 +90,7 @@ audit:
 	-@go mod tidy -diff
 	-@go mod verify
 	@echo '${YELLOW}===> Running modernize...${RESET}'
-	-@modernize -test ./...
+	-@go list ./... | grep -v '/internal/db$$' | xargs modernize -test
 	@echo '${YELLOW}===> Running linter...${RESET}'
 	-@golangci-lint run
 	@echo '${YELLOW}===> Checking generated database code...${RESET}'

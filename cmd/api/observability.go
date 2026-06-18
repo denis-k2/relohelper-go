@@ -279,7 +279,7 @@ func hasDetailedCityIncludeQuery(qs url.Values) bool {
 		return false
 	}
 
-	for _, part := range strings.Split(rawInclude, ",") {
+	for part := range strings.SplitSeq(rawInclude, ",") {
 		switch strings.TrimSpace(part) {
 		case "numbeo_cost", "numbeo_indices", "avg_climate":
 			return true
