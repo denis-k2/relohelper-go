@@ -3,8 +3,6 @@ package data
 import (
 	"testing"
 
-	_ "github.com/lib/pq"
-
 	"github.com/denis-k2/relohelper-go/internal/assert"
 )
 

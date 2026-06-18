@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"expvar"
 	"flag"
 	"fmt"
@@ -13,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/denis-k2/relohelper-go/internal/data"
 	"github.com/denis-k2/relohelper-go/internal/exchangerates"
@@ -65,7 +63,7 @@ type config struct {
 type application struct {
 	config        config
 	logger        *slog.Logger
-	db            *sql.DB
+	db            *pgxpool.Pool
 	models        data.Models
 	mailer        mailer.Mailer
 	exchangeRates *exchangerates.Service
@@ -92,9 +90,7 @@ func run() error {
 		return err
 	}
 	defer func() {
-		if err := db.Close(); err != nil {
-			logger.Error("failed to close database connection pool", "error", err)
-		}
+		db.Close()
 	}()
 	logger.Info("database connection pool established")
 
@@ -156,31 +152,33 @@ func parseFlags() (config, error) {
 	return cfg, nil
 }
 
-func openDB(cfg config) (*sql.DB, error) {
-	db, err := sql.Open("postgres", cfg.db.dsn)
+func openDB(cfg config) (*pgxpool.Pool, error) {
+	poolConfig, err := pgxpool.ParseConfig(cfg.db.dsn)
 	if err != nil {
 		return nil, err
 	}
 
-	db.SetMaxOpenConns(cfg.db.maxOpenConns)
-	db.SetMaxIdleConns(cfg.db.maxIdleConns)
-	db.SetConnMaxIdleTime(cfg.db.maxIdleTime)
+	poolConfig.MaxConns = int32(cfg.db.maxOpenConns)
+	poolConfig.MaxConnIdleTime = cfg.db.maxIdleTime
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err = db.PingContext(ctx)
+	db, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
-		if closeErr := db.Close(); closeErr != nil {
-			return nil, errors.Join(err, closeErr)
-		}
+		return nil, err
+	}
+
+	err = db.Ping(ctx)
+	if err != nil {
+		db.Close()
 		return nil, err
 	}
 
 	return db, nil
 }
 
-func registerMetrics(version string, db *sql.DB) {
+func registerMetrics(version string, db *pgxpool.Pool) {
 	expvar.NewString("version").Set(version)
 
 	expvar.Publish("goroutines", expvar.Func(func() any {
@@ -188,7 +186,20 @@ func registerMetrics(version string, db *sql.DB) {
 	}))
 
 	expvar.Publish("database", expvar.Func(func() any {
-		return db.Stats()
+		stats := db.Stat()
+		return map[string]any{
+			"acquired_conns":           stats.AcquiredConns(),
+			"canceled_acquire_count":   stats.CanceledAcquireCount(),
+			"constructing_conns":       stats.ConstructingConns(),
+			"empty_acquire_count":      stats.EmptyAcquireCount(),
+			"empty_acquire_wait_time":  stats.EmptyAcquireWaitTime().String(),
+			"idle_conns":               stats.IdleConns(),
+			"max_conns":                stats.MaxConns(),
+			"total_conns":              stats.TotalConns(),
+			"new_conns_count":          stats.NewConnsCount(),
+			"max_lifetime_destroy_cnt": stats.MaxLifetimeDestroyCount(),
+			"max_idle_destroy_count":   stats.MaxIdleDestroyCount(),
+		}
 	}))
 
 	expvar.Publish("timestamp", expvar.Func(func() any {

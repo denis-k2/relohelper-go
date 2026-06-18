@@ -1,10 +1,10 @@
 package data
 
 import (
-	"database/sql"
+	"context"
 	"testing"
 
-	_ "github.com/lib/pq"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/denis-k2/relohelper-go/internal/assert"
 )
@@ -83,7 +83,7 @@ func TestGetCityAvgClimateOrderedByMonth(t *testing.T) {
 	models := NewModels(db)
 
 	var geonameID int64
-	err := db.QueryRow(`
+	err := db.QueryRow(context.Background(), `
 		SELECT geoname_id
 		FROM avg_climate
 		GROUP BY geoname_id
@@ -104,7 +104,7 @@ func TestGetCityAvgClimateOrderedByMonth(t *testing.T) {
 	}
 
 	expected := make([]*float64, 12)
-	rows, err := db.Query(`
+	rows, err := db.Query(context.Background(), `
 		SELECT month, high_temp
 		FROM avg_climate
 		WHERE geoname_id = $1
@@ -113,21 +113,23 @@ func TestGetCityAvgClimateOrderedByMonth(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
-		if err := rows.Close(); err != nil {
-			t.Fatalf("failed to close rows: %v", err)
-		}
+		rows.Close()
 	}()
 
 	for rows.Next() {
 		var (
 			month int
-			value sql.NullFloat64
+			value pgtype.Numeric
 		)
 		if err := rows.Scan(&month, &value); err != nil {
 			t.Fatal(err)
 		}
 		if value.Valid {
-			v := value.Float64
+			floatValue, err := value.Float64Value()
+			if err != nil {
+				t.Fatal(err)
+			}
+			v := floatValue.Float64
 			expected[month-1] = &v
 		}
 	}
@@ -148,7 +150,7 @@ func TestGetCityAvgClimateSeaTempAllNull(t *testing.T) {
 	models := NewModels(db)
 
 	var geonameID int64
-	err := db.QueryRow(`
+	err := db.QueryRow(context.Background(), `
 		SELECT geoname_id
 		FROM avg_climate
 		GROUP BY geoname_id

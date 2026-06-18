@@ -1,8 +1,11 @@
 package data
 
 import (
-	"database/sql"
 	"errors"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/denis-k2/relohelper-go/internal/db"
 )
 
 var (
@@ -17,11 +20,12 @@ type Models struct {
 	Users     UserModelInterface
 }
 
-func NewModels(db *sql.DB) Models {
+func NewModels(pool *pgxpool.Pool) Models {
+	queries := db.New(pool)
 	return Models{
-		Cities:    CityModel{DB: db},
-		Countries: CountryModel{DB: db},
-		Tokens:    TokenModel{DB: db},
-		Users:     UserModel{DB: db},
+		Cities:    CityModel{Queries: queries},
+		Countries: CountryModel{Queries: queries},
+		Tokens:    TokenModel{Queries: queries},
+		Users:     UserModel{Queries: queries},
 	}
 }

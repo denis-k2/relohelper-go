@@ -1,0 +1,15 @@
+version: "2"
+sql:
+  - engine: "postgresql"
+    schema:
+      - "migrations/000001_create_users_table.up.sql"
+      - "migrations/000002_create_tokens_table.up.sql"
+      - "migrations/000003_create_domain_tables.up.sql"
+      - "migrations/000004_add_domain_indexes.up.sql"
+    queries: "internal/db/queries"
+    gen:
+      go:
+        package: "db"
+        out: "internal/db"
+        sql_package: "pgx/v5"
+        emit_pointers_for_null_types: true
