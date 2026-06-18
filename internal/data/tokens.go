@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/base32"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/denis-k2/relohelper-go/internal/db"
 	"github.com/denis-k2/relohelper-go/internal/validator"
 )
 
@@ -25,7 +27,7 @@ type Token struct {
 }
 
 type TokenModel struct {
-	DB *sql.DB
+	Queries *db.Queries
 }
 
 func generateToken(userID int64, ttl time.Duration, scope string) (*Token, error) {
@@ -66,27 +68,26 @@ func (m TokenModel) New(userID int64, ttl time.Duration, scope string) (*Token, 
 }
 
 func (m TokenModel) Insert(token *Token) error {
-	query := `
-        INSERT INTO tokens (hash, user_id, expiry, scope) 
-        VALUES ($1, $2, $3, $4)`
-
-	args := []any{token.Hash, token.UserID, token.Expiry, token.Scope}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	_, err := m.DB.ExecContext(ctx, query, args...)
-	return err
+	return m.Queries.InsertToken(ctx, db.InsertTokenParams{
+		Hash:   token.Hash,
+		UserID: token.UserID,
+		Expiry: pgtype.Timestamptz{
+			Time:  token.Expiry,
+			Valid: true,
+		},
+		Scope: token.Scope,
+	})
 }
 
 func (m TokenModel) DeleteAllForUser(scope string, userID int64) error {
-	query := `
-        DELETE FROM tokens 
-        WHERE scope = $1 AND user_id = $2`
-
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	_, err := m.DB.ExecContext(ctx, query, scope, userID)
-	return err
+	return m.Queries.DeleteAllTokensForUser(ctx, db.DeleteAllTokensForUserParams{
+		Scope:  scope,
+		UserID: userID,
+	})
 }

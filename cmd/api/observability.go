@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/hex"
 	"expvar"
 	"log/slog"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -29,7 +29,7 @@ var (
 	responses4xxMetric  = expvar.NewInt("responses_4xx_total")
 	responses5xxMetric  = expvar.NewInt("responses_5xx_total")
 	dbStatsProviderMu   sync.RWMutex
-	dbStatsProvider     = func() sql.DBStats { return sql.DBStats{} }
+	dbStatsProvider     = func() dbStats { return dbStats{} }
 
 	httpRequestsTotalMetric = promauto.NewCounterVec(
 		prometheus.CounterOpts{
@@ -279,7 +279,7 @@ func hasDetailedCityIncludeQuery(qs url.Values) bool {
 		return false
 	}
 
-	for _, part := range strings.Split(rawInclude, ",") {
+	for part := range strings.SplitSeq(rawInclude, ",") {
 		switch strings.TrimSpace(part) {
 		case "numbeo_cost", "numbeo_indices", "avg_climate":
 			return true
@@ -298,20 +298,37 @@ func newRequestID() string {
 	return hex.EncodeToString(b[:])
 }
 
-func setDBStatsProvider(db *sql.DB) {
+type dbStats struct {
+	OpenConnections    int32
+	InUse              int32
+	Idle               int32
+	WaitCount          int64
+	WaitDuration       time.Duration
+	MaxOpenConnections int32
+}
+
+func setDBStatsProvider(db *pgxpool.Pool) {
 	dbStatsProviderMu.Lock()
 	defer dbStatsProviderMu.Unlock()
 
-	dbStatsProvider = func() sql.DBStats {
+	dbStatsProvider = func() dbStats {
 		if db == nil {
-			return sql.DBStats{}
+			return dbStats{}
 		}
 
-		return db.Stats()
+		stats := db.Stat()
+		return dbStats{
+			OpenConnections:    stats.TotalConns(),
+			InUse:              stats.AcquiredConns(),
+			Idle:               stats.IdleConns(),
+			WaitCount:          stats.EmptyAcquireCount(),
+			WaitDuration:       stats.EmptyAcquireWaitTime(),
+			MaxOpenConnections: stats.MaxConns(),
+		}
 	}
 }
 
-func getDBStats() sql.DBStats {
+func getDBStats() dbStats {
 	dbStatsProviderMu.RLock()
 	provider := dbStatsProvider
 	dbStatsProviderMu.RUnlock()

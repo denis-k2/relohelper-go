@@ -95,10 +95,6 @@ func (app *application) readJSON(w http.ResponseWriter, r *http.Request, dst any
 	return nil
 }
 
-func ptrString(s string) *string {
-	return &s
-}
-
 func (app *application) readString(qs url.Values, key string, defaultValue string) string {
 	s := qs.Get(key)
 	if s == "" {
@@ -109,11 +105,7 @@ func (app *application) readString(qs url.Values, key string, defaultValue strin
 }
 
 func (app *application) background(fn func()) {
-	app.wg.Add(1)
-
-	go func() {
-		defer app.wg.Done()
-
+	app.wg.Go(func() {
 		defer func() {
 			if err := recover(); err != nil {
 				app.logger.Error(fmt.Sprintf("%v", err))
@@ -121,5 +113,5 @@ func (app *application) background(fn func()) {
 		}()
 
 		fn()
-	}()
+	})
 }

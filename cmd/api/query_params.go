@@ -39,7 +39,7 @@ func parseInclude(qs url.Values, allowed data.IncludeSet) (data.IncludeSet, erro
 	}
 
 	include := newIncludeSet()
-	for _, token := range strings.Split(raw, ",") {
+	for token := range strings.SplitSeq(raw, ",") {
 		item := strings.ToLower(strings.TrimSpace(token))
 		if item == "" {
 			return nil, fmt.Errorf("include contains an empty value")
@@ -73,7 +73,7 @@ func parseIDsInt64(qs url.Values, key string, max int) ([]int64, bool, error) {
 	ids := make([]int64, 0)
 	seen := make(map[int64]struct{})
 
-	for _, token := range strings.Split(raw, ",") {
+	for token := range strings.SplitSeq(raw, ",") {
 		item := strings.TrimSpace(token)
 		if item == "" {
 			return nil, true, fmt.Errorf("%s contains an empty value", key)
@@ -119,7 +119,7 @@ func parseIDsString(qs url.Values, key string, max int) ([]string, bool, error) 
 	ids := make([]string, 0)
 	seen := make(map[string]struct{})
 
-	for _, token := range strings.Split(raw, ",") {
+	for token := range strings.SplitSeq(raw, ",") {
 		item := strings.ToUpper(strings.TrimSpace(token))
 		if item == "" {
 			return nil, true, fmt.Errorf("%s contains an empty value", key)

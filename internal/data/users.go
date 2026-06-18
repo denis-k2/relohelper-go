@@ -3,11 +3,15 @@ package data
 import (
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"errors"
 	"time"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"golang.org/x/crypto/bcrypt"
+
+	"github.com/denis-k2/relohelper-go/internal/db"
 )
 
 var (
@@ -74,96 +78,76 @@ func (p *password) Matches(plaintextPassword string) (bool, error) {
 }
 
 type UserModel struct {
-	DB *sql.DB
+	Queries *db.Queries
 }
 
 func (m UserModel) Insert(user *User) error {
-	query := `
-        INSERT INTO users (name, email, password_hash, activated) 
-        VALUES ($1, $2, $3, $4)
-        RETURNING id, created_at, version`
-
-	args := []any{user.Name, user.Email, user.Password.hash, user.Activated}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.CreatedAt, &user.Version)
+	row, err := m.Queries.InsertUser(ctx, db.InsertUserParams{
+		Name:         user.Name,
+		Email:        user.Email,
+		PasswordHash: user.Password.hash,
+		Activated:    user.Activated,
+	})
 	if err != nil {
 		switch {
-		case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"`:
+		case isUniqueViolation(err, "users_email_key"):
 			return ErrDuplicateEmail
 		default:
 			return err
 		}
 	}
 
+	user.ID = row.ID
+	user.CreatedAt = row.CreatedAt.Time
+	user.Version = int(row.Version)
+
 	return nil
 }
 
 func (m UserModel) GetByEmail(email string) (*User, error) {
-	query := `
-        SELECT id, created_at, name, email, password_hash, activated, version
-        FROM users
-        WHERE email = $1`
-
-	var user User
-
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := m.DB.QueryRowContext(ctx, query, email).Scan(
-		&user.ID,
-		&user.CreatedAt,
-		&user.Name,
-		&user.Email,
-		&user.Password.hash,
-		&user.Activated,
-		&user.Version,
-	)
-
+	row, err := m.Queries.GetUserByEmail(ctx, email)
 	if err != nil {
 		switch {
-		case errors.Is(err, sql.ErrNoRows):
+		case errors.Is(err, pgx.ErrNoRows):
 			return nil, ErrRecordNotFound
 		default:
 			return nil, err
 		}
 	}
 
-	return &user, nil
+	return newUserFromDB(row), nil
 }
 
 func (m UserModel) Update(user *User) error {
-	query := `
-        UPDATE users 
-        SET name = $1, email = $2, password_hash = $3, activated = $4, version = version + 1
-        WHERE id = $5 AND version = $6
-        RETURNING version`
-
-	args := []any{
-		user.Name,
-		user.Email,
-		user.Password.hash,
-		user.Activated,
-		user.ID,
-		user.Version,
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.Version)
+	version, err := m.Queries.UpdateUser(ctx, db.UpdateUserParams{
+		Name:         user.Name,
+		Email:        user.Email,
+		PasswordHash: user.Password.hash,
+		Activated:    user.Activated,
+		ID:           user.ID,
+		Version:      int32(user.Version),
+	})
 	if err != nil {
 		switch {
-		case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key"`:
+		case isUniqueViolation(err, "users_email_key"):
 			return ErrDuplicateEmail
-		case errors.Is(err, sql.ErrNoRows):
+		case errors.Is(err, pgx.ErrNoRows):
 			return ErrEditConflict
 		default:
 			return err
 		}
 	}
+
+	user.Version = int(version)
 
 	return nil
 }
@@ -171,39 +155,48 @@ func (m UserModel) Update(user *User) error {
 func (m UserModel) GetForToken(tokenScope, tokenPlaintext string) (*User, error) {
 	tokenHash := sha256.Sum256([]byte(tokenPlaintext))
 
-	query := `
-        SELECT users.id, users.created_at, users.name, users.email, users.password_hash, users.activated, users.version
-        FROM users
-        INNER JOIN tokens
-        ON users.id = tokens.user_id
-        WHERE tokens.hash = $1
-        AND tokens.scope = $2 
-        AND tokens.expiry > $3`
-
-	args := []any{tokenHash[:], tokenScope, time.Now()}
-
-	var user User
-
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	err := m.DB.QueryRowContext(ctx, query, args...).Scan(
-		&user.ID,
-		&user.CreatedAt,
-		&user.Name,
-		&user.Email,
-		&user.Password.hash,
-		&user.Activated,
-		&user.Version,
-	)
+	row, err := m.Queries.GetUserForToken(ctx, db.GetUserForTokenParams{
+		Hash:  tokenHash[:],
+		Scope: tokenScope,
+		Expiry: pgtype.Timestamptz{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	})
 	if err != nil {
 		switch {
-		case errors.Is(err, sql.ErrNoRows):
+		case errors.Is(err, pgx.ErrNoRows):
 			return nil, ErrRecordNotFound
 		default:
 			return nil, err
 		}
 	}
 
-	return &user, nil
+	return newUserFromDB(row), nil
+}
+
+func newUserFromDB(row db.User) *User {
+	return &User{
+		ID:        row.ID,
+		CreatedAt: row.CreatedAt.Time,
+		Name:      row.Name,
+		Email:     row.Email,
+		Password: password{
+			hash: row.PasswordHash,
+		},
+		Activated: row.Activated,
+		Version:   int(row.Version),
+	}
+}
+
+func isUniqueViolation(err error, constraint string) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+
+	return pgErr.Code == "23505" && pgErr.ConstraintName == constraint
 }

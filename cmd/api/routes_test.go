@@ -1,7 +1,7 @@
 package main
 
 import (
-	"database/sql"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/denis-k2/relohelper-go/internal/assert"
 	"github.com/denis-k2/relohelper-go/internal/data"
@@ -326,7 +328,7 @@ func fetchExpectedCity(t *testing.T, geonameID int64) data.City {
 	t.Helper()
 
 	var city data.City
-	err := testDB.QueryRow(`
+	err := testDB.QueryRow(context.Background(), `
 		SELECT c.geoname_id, c.city, c.state_code, c.country_code, ctr.country,
 		       c.population, c.latitude, c.longitude, c.timezone,
 		       to_char(c.updated_date, 'YYYY-MM-DD') AS last_update
@@ -355,7 +357,7 @@ func fetchExpectedCountry(t *testing.T, code string) data.Country {
 	t.Helper()
 
 	var country data.Country
-	err := testDB.QueryRow(`
+	err := testDB.QueryRow(context.Background(), `
 		SELECT country_code, country, population, area, last_update::text
 		FROM countries
 		WHERE country_code = UPPER($1);`, code).Scan(
@@ -452,7 +454,7 @@ func TestCitiesByCountry(t *testing.T) {
 			switch tt.statusCode {
 			case http.StatusOK:
 				var expectedCount int
-				err := testDB.QueryRow(`
+				err := testDB.QueryRow(context.Background(), `
 					SELECT COUNT(*)
 					FROM cities
 					WHERE LOWER(country_code) = LOWER($1);`, tt.countryCode).Scan(&expectedCount)
@@ -737,8 +739,8 @@ func TestCityIncludeFieldPresence(t *testing.T) {
 			LIMIT 1;`, table, idColumn, idColumn)
 
 		var geonameID int64
-		if err := testDB.QueryRow(query).Scan(&geonameID); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+		if err := testDB.QueryRow(context.Background(), query).Scan(&geonameID); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
 				return 0, false
 			}
 			t.Fatalf("failed to find city without data in %s: %v", table, err)
@@ -801,8 +803,8 @@ func TestCountryIncludeFieldPresence(t *testing.T) {
 			LIMIT 1;`, table, codeColumn, codeColumn)
 
 		var countryCode string
-		if err := testDB.QueryRow(query).Scan(&countryCode); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+		if err := testDB.QueryRow(context.Background(), query).Scan(&countryCode); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
 				return "", false
 			}
 			t.Fatalf("failed to find country without data in %s: %v", table, err)
@@ -823,8 +825,8 @@ func TestCountryIncludeFieldPresence(t *testing.T) {
 			LIMIT 1;`
 
 		var countryCode string
-		if err := testDB.QueryRow(query).Scan(&countryCode); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+		if err := testDB.QueryRow(context.Background(), query).Scan(&countryCode); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
 				return "", false
 			}
 			t.Fatalf("failed to find country without numbeo and with legatum: %v", err)
@@ -1087,7 +1089,7 @@ func TestCountriesBatchByCodesLimit(t *testing.T) {
 	defer ts.Close()
 
 	rawCodes := make([]string, 0, 21)
-	for i := 0; i < 21; i++ {
+	for i := range 21 {
 		rawCodes = append(rawCodes, fmt.Sprintf("C%02d", i))
 	}
 
@@ -1216,8 +1218,8 @@ func TestCountryandQuery(t *testing.T) {
 			LIMIT 1;`
 
 		var countryCode string
-		if err := testDB.QueryRow(query).Scan(&countryCode); err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
+		if err := testDB.QueryRow(context.Background(), query).Scan(&countryCode); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
 				return "", false
 			}
 			t.Fatalf("failed to find country without numbeo and with legatum: %v", err)

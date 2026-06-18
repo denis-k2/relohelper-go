@@ -2,7 +2,7 @@ package main
 
 import (
 	"bytes"
-	"database/sql"
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -11,6 +11,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/denis-k2/relohelper-go/internal/data"
 	"github.com/denis-k2/relohelper-go/internal/mocks"
 )
@@ -18,7 +20,7 @@ import (
 var (
 	logger  *slog.Logger
 	testApp *application
-	testDB  *sql.DB
+	testDB  *pgxpool.Pool
 )
 
 // configureTestLogger configures a logger for testing.
@@ -55,14 +57,12 @@ func TestMain(m *testing.M) {
 
 	code := m.Run()
 
-	if err := testDB.Close(); err != nil {
-		logger.Error("failed to close DB", "error", err)
-	}
+	testDB.Close()
 
 	os.Exit(code)
 }
 
-func newTestApplication(cfg config) (*application, *sql.DB, error) {
+func newTestApplication(cfg config) (*application, *pgxpool.Pool, error) {
 	db, err := openDB(cfg)
 	if err != nil {
 		logger.Error("database connection error", "error", err)
@@ -236,7 +236,7 @@ func setupUsersTable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = testDB.Exec(string(script))
+	_, err = testDB.Exec(context.Background(), string(script))
 	if err != nil {
 		closeTestDB(t)
 		t.Fatal(err)
@@ -251,7 +251,7 @@ func teardownUsersTable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = testDB.Exec(string(script))
+	_, err = testDB.Exec(context.Background(), string(script))
 	if err != nil {
 		closeTestDB(t)
 		t.Fatal(err)
@@ -266,7 +266,7 @@ func setupTokensTable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = testDB.Exec(string(script))
+	_, err = testDB.Exec(context.Background(), string(script))
 	if err != nil {
 		closeTestDB(t)
 		t.Fatal(err)
@@ -281,7 +281,7 @@ func teardownTokensTable(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, err = testDB.Exec(string(script))
+	_, err = testDB.Exec(context.Background(), string(script))
 	if err != nil {
 		closeTestDB(t)
 		t.Fatal(err)
@@ -291,7 +291,5 @@ func teardownTokensTable(t *testing.T) {
 func closeTestDB(t *testing.T) {
 	t.Helper()
 
-	if err := testDB.Close(); err != nil {
-		t.Logf("failed to close test DB: %v", err)
-	}
+	testDB.Close()
 }

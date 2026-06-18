@@ -37,7 +37,7 @@ func (app *application) readinessHandler(w http.ResponseWriter, r *http.Request)
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second)
 	defer cancel()
 
-	if err := app.db.PingContext(ctx); err != nil {
+	if err := app.db.Ping(ctx); err != nil {
 		env := envelope{
 			"status": "not ready",
 			"checks": map[string]string{

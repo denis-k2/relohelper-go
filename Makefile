@@ -54,6 +54,19 @@ db/migrations/up: confirm
 	@echo 'Running up migrations...'
 	@migrate -path ./migrations -database ${RELOHELPER_DB_DSN} up
 
+## db/sqlc/generate: generate type-safe database query code
+.PHONY: db/sqlc/generate
+db/sqlc/generate:
+	@echo 'Generating sqlc database code...'
+	@sqlc generate
+
+## db/sqlc/check: verify generated database query code is up to date
+.PHONY: db/sqlc/check
+db/sqlc/check:
+	@echo 'Checking sqlc generated database code...'
+	@sqlc generate
+	@git diff --exit-code -- internal/db
+
 # ==================================================================================== #
 # QUALITY CONTROL
 # ==================================================================================== #
@@ -77,9 +90,11 @@ audit:
 	-@go mod tidy -diff
 	-@go mod verify
 	@echo '${YELLOW}===> Running modernize...${RESET}'
-	-@modernize -test ./...
+	-@go list ./... | grep -v '/internal/db$$' | xargs modernize -test
 	@echo '${YELLOW}===> Running linter...${RESET}'
 	-@golangci-lint run
+	@echo '${YELLOW}===> Checking generated database code...${RESET}'
+	@$(MAKE) db/sqlc/check
 	@echo '${YELLOW}===> Running full test suite...${RESET}'
 	-@go test -count=1 ./... -args -db-dsn=${RELOHELPER_TEST_DB_DSN}
 
