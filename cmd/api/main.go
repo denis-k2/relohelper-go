@@ -30,7 +30,6 @@ type config struct {
 	db   struct {
 		dsn          string
 		maxOpenConns int
-		maxIdleConns int
 		maxIdleTime  time.Duration
 	}
 	limiter struct {
@@ -122,7 +121,6 @@ func parseFlags() (config, error) {
 
 	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("RELOHELPER_DB_DSN"), "PostgreSQL DSN")
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connections")
-	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "PostgreSQL max idle connections")
 	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", 15*time.Minute, "PostgreSQL max connection idle time")
 
 	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 10, "Rate limiter maximum requests per second")
