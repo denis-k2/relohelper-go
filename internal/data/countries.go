@@ -116,7 +116,11 @@ func (c CountryModel) GetCountry(countryCode string, include IncludeSet) (*Count
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	row, err := c.Queries.GetCountry(ctx, countryCode)
+	row, err := c.Queries.GetCountryDetailed(ctx, db.GetCountryDetailedParams{
+		IncludeNumbeoIndices:  include.Has("numbeo_indices"),
+		IncludeLegatumIndices: include.Has("legatum_indices"),
+		CountryCode:           countryCode,
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrRecordNotFound
@@ -124,22 +128,7 @@ func (c CountryModel) GetCountry(countryCode string, include IncludeSet) (*Count
 		return nil, err
 	}
 
-	country := newCountryFromGetRow(row)
-	countryByCode := map[string]*Country{country.Code: country}
-
-	if include.Has("numbeo_indices") {
-		if err := c.attachNumbeoIndicesByCodes(ctx, []string{country.Code}, countryByCode); err != nil {
-			return nil, err
-		}
-	}
-
-	if include.Has("legatum_indices") {
-		if err := c.attachLegatumIndicesByCodes(ctx, []string{country.Code}, countryByCode); err != nil {
-			return nil, err
-		}
-	}
-
-	return country, nil
+	return newCountryFromDetailedRow(row)
 }
 
 func (c CountryModel) GetCountriesByCodes(codes []string, include IncludeSet) ([]*Country, error) {
@@ -245,14 +234,40 @@ func newCountryFromListRow(row db.ListCountriesRow) *Country {
 	}
 }
 
-func newCountryFromGetRow(row db.GetCountryRow) *Country {
-	return &Country{
+func newCountryFromDetailedRow(row db.GetCountryDetailedRow) (*Country, error) {
+	country := &Country{
 		Code:       row.CountryCode,
 		Name:       row.Country,
 		Population: row.Population,
 		Area:       row.Area,
 		LastUpdate: row.LastUpdate,
 	}
+
+	numbeoJSON, err := jsonRawBytes(row.NumbeoIndices)
+	if err != nil {
+		return nil, err
+	}
+	if len(numbeoJSON) > 0 && string(numbeoJSON) != "null" {
+		var indices NumbeoCountryIndices
+		if err := json.Unmarshal(numbeoJSON, &indices); err != nil {
+			return nil, err
+		}
+		country.NumbeoCountryIndices = &indices
+	}
+
+	legatumJSON, err := jsonRawBytes(row.LegatumIndices)
+	if err != nil {
+		return nil, err
+	}
+	if len(legatumJSON) > 0 && string(legatumJSON) != "null" {
+		var indices LegatumCountryIndices
+		if err := json.Unmarshal(legatumJSON, &indices); err != nil {
+			return nil, err
+		}
+		country.LegatumCountryIndices = &indices
+	}
+
+	return country, nil
 }
 
 func newCountryFromCodesRow(row db.GetCountriesByCodesRow) *Country {

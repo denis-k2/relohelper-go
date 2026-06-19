@@ -50,29 +50,96 @@ func (q *Queries) GetCountriesByCodes(ctx context.Context, countryCodes []string
 	return items, nil
 }
 
-const getCountry = `-- name: GetCountry :one
-SELECT ctr.country_code, ctr.country, ctr.population, ctr.area, ctr.last_update::text AS last_update
+const getCountryDetailed = `-- name: GetCountryDetailed :one
+SELECT
+    ctr.country_code,
+    ctr.country,
+    ctr.population,
+    ctr.area,
+    ctr.last_update::text AS last_update,
+    CASE
+        WHEN $1::boolean THEN (
+            SELECT jsonb_build_object(
+                'cost_of_living', nic.cost_of_living,
+                'rent', nic.rent,
+                'cost_of_living_plus_rent', nic.cost_of_living_plus_rent,
+                'groceries', nic.groceries,
+                'restaurant_price', nic.restaurant_price,
+                'local_purchasing_power', nic.local_purchasing_power,
+                'quality_of_life', nic.quality_of_life,
+                'property_price_to_income_ratio', nic.property_price_to_income_ratio,
+                'traffic_commute_time', nic.traffic_commute_time,
+                'climate', nic.climate,
+                'safety', nic.safety,
+                'health_care', nic.health_care,
+                'pollution', nic.pollution,
+                'avg_salary_usd', nic.avg_salary_usd,
+                'last_update', to_char(nic.updated_date, 'YYYY-MM-DD')
+            )
+            FROM numbeo_country_indices nic
+            WHERE nic.country_code = ctr.country_code
+        )
+        ELSE NULL
+    END AS numbeo_indices,
+    CASE
+        WHEN $2::boolean THEN (
+            SELECT jsonb_object_agg(l.key, l.value)
+            FROM legatum_country_indices li
+            CROSS JOIN LATERAL (
+                SELECT
+                    CASE li.pillar_name
+                        WHEN 'Safety and Security' THEN 'safety_and_security'
+                        WHEN 'Personal Freedom' THEN 'personal_freedom'
+                        WHEN 'Governance' THEN 'governance'
+                        WHEN 'Social Capital' THEN 'social_capital'
+                        WHEN 'Investment Environment' THEN 'investment_invironment'
+                        WHEN 'Enterprise Conditions' THEN 'enterprise_conditions'
+                        WHEN 'Infrastructure and Market Access' THEN 'infrastructure_and_market_access'
+                        WHEN 'Economic Quality' THEN 'economic_quality'
+                        WHEN 'Living Conditions' THEN 'living_conditions'
+                        WHEN 'Health' THEN 'health'
+                        WHEN 'Education' THEN 'education'
+                        WHEN 'Natural Environment' THEN 'natural_environment'
+                    END AS key,
+                    to_jsonb(li) - 'country_code' - 'pillar_name' AS value
+            ) AS l
+            WHERE li.country_code = ctr.country_code AND l.key IS NOT NULL
+        )
+        ELSE NULL
+    END AS legatum_indices
 FROM countries ctr
-WHERE ctr.country_code = $1::text
+WHERE ctr.country_code = $3::text
 `
 
-type GetCountryRow struct {
-	CountryCode string
-	Country     string
-	Population  *int64
-	Area        *int64
-	LastUpdate  string
+type GetCountryDetailedParams struct {
+	IncludeNumbeoIndices  bool
+	IncludeLegatumIndices bool
+	CountryCode           string
 }
 
-func (q *Queries) GetCountry(ctx context.Context, countryCode string) (GetCountryRow, error) {
-	row := q.db.QueryRow(ctx, getCountry, countryCode)
-	var i GetCountryRow
+type GetCountryDetailedRow struct {
+	CountryCode    string
+	Country        string
+	Population     *int64
+	Area           *int64
+	LastUpdate     string
+	NumbeoIndices  interface{}
+	LegatumIndices interface{}
+}
+
+// Detail endpoint query. Optional include blocks are guarded by boolean
+// parameters so unrequested JSON payloads are not built.
+func (q *Queries) GetCountryDetailed(ctx context.Context, arg GetCountryDetailedParams) (GetCountryDetailedRow, error) {
+	row := q.db.QueryRow(ctx, getCountryDetailed, arg.IncludeNumbeoIndices, arg.IncludeLegatumIndices, arg.CountryCode)
+	var i GetCountryDetailedRow
 	err := row.Scan(
 		&i.CountryCode,
 		&i.Country,
 		&i.Population,
 		&i.Area,
 		&i.LastUpdate,
+		&i.NumbeoIndices,
+		&i.LegatumIndices,
 	)
 	return i, err
 }

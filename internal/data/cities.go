@@ -128,7 +128,12 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	row, err := c.Queries.GetCity(ctx, id)
+	row, err := c.Queries.GetCityDetailed(ctx, db.GetCityDetailedParams{
+		IncludeNumbeoCost:    include.Has("numbeo_cost"),
+		IncludeNumbeoIndices: include.Has("numbeo_indices"),
+		IncludeAvgClimate:    include.Has("avg_climate"),
+		GeonameID:            id,
+	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrRecordNotFound
@@ -136,29 +141,7 @@ func (c CityModel) GetCity(id int64, include IncludeSet) (*City, error) {
 		return nil, err
 	}
 
-	city := newCityFromGetRow(row)
-	cityByID := map[int64]*City{city.GeonameID: city}
-	ids := []int64{city.GeonameID}
-
-	if include.Has("numbeo_cost") {
-		if err := c.attachNumbeoCostByCityIDs(ctx, ids, cityByID); err != nil {
-			return nil, err
-		}
-	}
-
-	if include.Has("numbeo_indices") {
-		if err := c.attachNumbeoCityIndicesByCityIDs(ctx, ids, cityByID); err != nil {
-			return nil, err
-		}
-	}
-
-	if include.Has("avg_climate") {
-		if err := c.attachAvgClimateByCityIDs(ctx, ids, cityByID); err != nil {
-			return nil, err
-		}
-	}
-
-	return city, nil
+	return newCityFromDetailedRow(row)
 }
 
 func (c CityModel) GetCitiesByIDs(ids []int64, include IncludeSet) ([]*City, error) {
@@ -306,8 +289,8 @@ func newCityFromListRow(row db.ListCitiesRow) *City {
 	}
 }
 
-func newCityFromGetRow(row db.GetCityRow) *City {
-	return &City{
+func newCityFromDetailedRow(row db.GetCityDetailedRow) (*City, error) {
+	city := &City{
 		GeonameID:   row.GeonameID,
 		Name:        row.City,
 		StateCode:   row.StateCode,
@@ -319,6 +302,44 @@ func newCityFromGetRow(row db.GetCityRow) *City {
 		Timezone:    stringValue(row.Timezone),
 		LastUpdate:  row.LastUpdate,
 	}
+
+	costJSON, err := jsonRawBytes(row.NumbeoCost)
+	if err != nil {
+		return nil, err
+	}
+	if len(costJSON) > 0 && string(costJSON) != "null" {
+		var details NumbeoCost
+		if err := json.Unmarshal(costJSON, &details); err != nil {
+			return nil, err
+		}
+		city.NumbeoCost = &details
+	}
+
+	indicesJSON, err := jsonRawBytes(row.NumbeoIndices)
+	if err != nil {
+		return nil, err
+	}
+	if len(indicesJSON) > 0 && string(indicesJSON) != "null" {
+		var details NumbeoCityIndices
+		if err := json.Unmarshal(indicesJSON, &details); err != nil {
+			return nil, err
+		}
+		city.NumbeoCityIndices = &details
+	}
+
+	climateJSON, err := jsonRawBytes(row.AvgClimate)
+	if err != nil {
+		return nil, err
+	}
+	if len(climateJSON) > 0 && string(climateJSON) != "null" {
+		avgClimate, err := decodeAvgClimateSeries(row.GeonameID, climateJSON)
+		if err != nil {
+			return nil, err
+		}
+		city.AvgClimate = avgClimate
+	}
+
+	return city, nil
 }
 
 func newCityFromIDsRow(row db.GetCitiesByIDsRow) *City {
