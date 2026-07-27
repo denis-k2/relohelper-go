@@ -10,7 +10,7 @@ This deploy setup is intended for an Ubuntu VPS and keeps the public surface are
 
 - Deploy compose: `deploy/docker-compose.yml`
 - Caddy config: `deploy/Caddyfile`
-- API image build: `Dockerfile`
+- API image: `ghcr.io/denis-k2/relohelper-go`
 - Env template: `.env.example`
 
 ## DNS
@@ -47,6 +47,7 @@ Fill in at least:
 - `POSTGRES_DB`
 - `POSTGRES_USER`
 - `POSTGRES_PASSWORD`
+- `RELOHELPER_IMAGE_TAG`
 - `RELOHELPER_DB_MAX_OPEN_CONNS`
 - `RELOHELPER_LIMITER_RPS`
 - `RELOHELPER_LIMITER_BURST`
@@ -56,13 +57,70 @@ Fill in at least:
 - `GRAFANA_ADMIN_PASSWORD`
 - SMTP settings if email delivery is required
 
+Use `edge` only for testing the latest `main` build. For a stable deployment,
+pin `RELOHELPER_IMAGE_TAG` to a release such as `0.5.0` or to an immutable
+`sha-<commit>` tag.
+
+## GHCR access
+
+The API image contains no secrets. If the GHCR package is public, the VPS can
+pull it without authentication.
+
+If the package is private, log in once on the VPS with a GitHub token that has
+the `read:packages` permission:
+
+```bash
+echo "$GHCR_TOKEN" | docker login ghcr.io -u denis-k2 --password-stdin
+```
+
+Do not store `GHCR_TOKEN` in the project `.env` file.
+
 ## Run on VPS
 
 From the repository root:
 
 ```bash
-docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
+docker compose --env-file .env -f deploy/docker-compose.yml pull
+docker compose --env-file .env -f deploy/docker-compose.yml up -d
 ```
+
+The VPS downloads the image built by GitHub Actions. It does not compile the
+Go project or retain a Go builder image.
+
+Verify the version embedded in the API image:
+
+```bash
+docker compose --env-file .env -f deploy/docker-compose.yml \
+  run --rm --no-deps api /app/api -version
+```
+
+## Updating
+
+Pull the current deployment files, select the image tag in `.env`, and apply
+the update:
+
+```bash
+git pull --ff-only
+docker compose --env-file .env -f deploy/docker-compose.yml pull
+docker compose --env-file .env -f deploy/docker-compose.yml up -d
+```
+
+Compose recreates the API container when its image changes. PostgreSQL data
+remains in the existing named volume.
+
+## Rollback
+
+Set `RELOHELPER_IMAGE_TAG` in `.env` to the previously working release or
+`sha-<commit>` tag, then run:
+
+```bash
+docker compose --env-file .env -f deploy/docker-compose.yml pull api
+docker compose --env-file .env -f deploy/docker-compose.yml up -d api
+```
+
+This rolls back the API image only. Database migrations are not automatically
+reverted; schema-changing releases require a compatible migration plan and a
+verified backup.
 
 ## Public URLs
 

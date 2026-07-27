@@ -101,7 +101,7 @@ For production-like deployment on an Ubuntu VPS, use the dedicated deploy stack.
 - VPS compose: `deploy/docker-compose.yml`
 - Caddy config: `deploy/Caddyfile`
 - Deploy guide: `deploy/DEPLOY.md`
-- API image build: `Dockerfile`
+- API image: `ghcr.io/denis-k2/relohelper-go`
 - Env template: `.env.example`
 
 See [deploy/DEPLOY.md](./deploy/DEPLOY.md) for:
@@ -116,7 +116,8 @@ See [deploy/DEPLOY.md](./deploy/DEPLOY.md) for:
 Run the VPS stack from the repository root with:
 
 ```bash
-docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
+docker compose --env-file .env -f deploy/docker-compose.yml pull
+docker compose --env-file .env -f deploy/docker-compose.yml up -d
 ```
 
 ## Recommendation by Use Case
