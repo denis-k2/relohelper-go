@@ -109,6 +109,7 @@ See [deploy/DEPLOY.md](./deploy/DEPLOY.md) for:
 - DNS setup
 - firewall requirements
 - environment variables
+- manual deployment through GitHub Actions
 - startup commands
 - public and internal service exposure
 - secure Grafana access via SSH tunnel
