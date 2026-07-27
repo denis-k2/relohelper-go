@@ -62,9 +62,7 @@ services:
       ]
 
   api:
-    build:
-      context: ..
-      dockerfile: Dockerfile
+    image: ghcr.io/denis-k2/relohelper-go:${RELOHELPER_IMAGE_TAG:-edge}
     restart: unless-stopped
     logging:
       driver: json-file

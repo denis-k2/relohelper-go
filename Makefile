@@ -1,4 +1,4 @@
-include .envrc
+-include .envrc
 
 # Formatting variables
 YELLOW := $(shell tput -Txterm setaf 3)
@@ -54,6 +54,27 @@ db/migrations/up: confirm
 	@echo 'Running up migrations...'
 	@migrate -path ./migrations -database ${RELOHELPER_DB_DSN} up
 
+## db/test/prepare: apply migrations and load deterministic test fixtures
+.PHONY: db/test/prepare
+db/test/prepare:
+	@test -n "${RELOHELPER_TEST_DB_DSN}" || (echo 'RELOHELPER_TEST_DB_DSN is required' && exit 1)
+	@dsn="${RELOHELPER_TEST_DB_DSN}"; \
+		db_url="$${dsn%%\?*}"; \
+		db_name="$${db_url##*/}"; \
+		case "$$(printf '%s' "$${db_name}" | tr '[:upper:]' '[:lower:]')" in \
+			*test*) ;; \
+			*) echo "Refusing to prepare database '$${db_name}': its name must contain 'test'"; exit 1 ;; \
+		esac
+	@echo 'Preparing test database...'
+	@migrate -path ./migrations -database "${RELOHELPER_TEST_DB_DSN}" up
+	@dsn="${RELOHELPER_TEST_DB_DSN}"; \
+		case "$${dsn}" in \
+			*\?*) fixture_dsn="$${dsn}&x-migrations-table=relohelper_test_fixtures" ;; \
+			*) fixture_dsn="$${dsn}?x-migrations-table=relohelper_test_fixtures" ;; \
+		esac; \
+		migrate -path ./tests/fixtures -database "$${fixture_dsn}" force 0; \
+		migrate -path ./tests/fixtures -database "$${fixture_dsn}" up
+
 ## db/sqlc/generate: generate type-safe database query code
 .PHONY: db/sqlc/generate
 db/sqlc/generate:
@@ -72,6 +93,12 @@ db/sqlc/check:
 		status=$$?; \
 		rm -f $${before} $${after}; \
 		exit $${status}
+
+## db/sqlc/vet: check SQL queries for correctness
+.PHONY: db/sqlc/vet
+db/sqlc/vet:
+	@echo 'Checking sqlc queries...'
+	@sqlc vet
 
 # ==================================================================================== #
 # QUALITY CONTROL
@@ -93,16 +120,17 @@ tidy:
 .PHONY: audit
 audit:
 	@echo '${YELLOW}===> Running code quality checks...${RESET}'
-	-@go mod tidy -diff
-	-@go mod verify
+	@go mod tidy -diff
+	@go mod verify
 	@echo '${YELLOW}===> Running modernize...${RESET}'
-	-@go list ./... | grep -v '/internal/db$$' | xargs modernize -test
+	@go list ./... | grep -v '/internal/db$$' | xargs modernize -test
 	@echo '${YELLOW}===> Running linter...${RESET}'
-	-@golangci-lint run
+	@golangci-lint run
 	@echo '${YELLOW}===> Checking generated database code...${RESET}'
 	@$(MAKE) db/sqlc/check
+	@$(MAKE) db/sqlc/vet
 	@echo '${YELLOW}===> Running full test suite...${RESET}'
-	-@go test -count=1 ./... -args -db-dsn=${RELOHELPER_TEST_DB_DSN}
+	@go test -count=1 ./... -args -db-dsn=${RELOHELPER_TEST_DB_DSN}
 
 # ==================================================================================== #
 # TESTING

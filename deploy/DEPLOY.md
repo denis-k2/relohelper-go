@@ -10,7 +10,7 @@ This deploy setup is intended for an Ubuntu VPS and keeps the public surface are
 
 - Deploy compose: `deploy/docker-compose.yml`
 - Caddy config: `deploy/Caddyfile`
-- API image build: `Dockerfile`
+- API image: `ghcr.io/denis-k2/relohelper-go`
 - Env template: `.env.example`
 
 ## DNS
@@ -47,6 +47,7 @@ Fill in at least:
 - `POSTGRES_DB`
 - `POSTGRES_USER`
 - `POSTGRES_PASSWORD`
+- `RELOHELPER_IMAGE_TAG`
 - `RELOHELPER_DB_MAX_OPEN_CONNS`
 - `RELOHELPER_LIMITER_RPS`
 - `RELOHELPER_LIMITER_BURST`
@@ -56,13 +57,117 @@ Fill in at least:
 - `GRAFANA_ADMIN_PASSWORD`
 - SMTP settings if email delivery is required
 
+Use `edge` only for testing the latest `main` build. For a stable deployment,
+pin `RELOHELPER_IMAGE_TAG` to a release such as `0.5.0` or to an immutable
+`sha-<commit>` tag.
+
+## GHCR access
+
+The API image contains no secrets. If the GHCR package is public, the VPS can
+pull it without authentication.
+
+If the package is private, log in once on the VPS with a GitHub token that has
+the `read:packages` permission:
+
+```bash
+echo "$GHCR_TOKEN" | docker login ghcr.io -u denis-k2 --password-stdin
+```
+
+Do not store `GHCR_TOKEN` in the project `.env` file.
+
+## GitHub Actions deployment
+
+The `Deploy` workflow provides a manually confirmed production deployment:
+
+1. Open `Actions -> Deploy`.
+2. Select `Run workflow`.
+3. Keep the workflow branch set to `main`.
+4. Enter an image tag such as `edge`, `0.5.0`, or `sha-<commit>`.
+5. Run the workflow.
+
+The workflow updates the repository on the VPS, pulls the selected image,
+starts the Compose stack, waits for `/readyz`, and reports the deployed version.
+It does not automatically roll back database migrations.
+
+Configure these repository or `production` environment variables in
+`Settings -> Secrets and variables -> Actions`:
+
+- `VPS_HOST`: VPS IPv4 address or DNS name
+- `VPS_PORT`: SSH port; optional, defaults to `22`
+- `VPS_USER`: SSH deployment user
+- `VPS_DEPLOY_PATH`: absolute path to the repository on the VPS
+
+Configure these secrets:
+
+- `VPS_SSH_PRIVATE_KEY`: private key used only by GitHub Actions
+- `VPS_SSH_KNOWN_HOSTS`: verified SSH host key entry for the VPS
+
+Create a dedicated deployment key locally:
+
+```bash
+ssh-keygen -t ed25519 -C github-actions-relohelper -f ./relohelper_deploy_key
+```
+
+Append `relohelper_deploy_key.pub` to the deployment user's
+`~/.ssh/authorized_keys` on the VPS. Store the contents of
+`relohelper_deploy_key` in `VPS_SSH_PRIVATE_KEY`.
+
+Obtain the host key entry:
+
+```bash
+ssh-keyscan -H -p 22 <your_vps_ip>
+```
+
+Verify its fingerprint against the VPS host key before storing the output in
+`VPS_SSH_KNOWN_HOSTS`. The deployment user must have access to the repository
+directory and permission to run Docker without `sudo`.
+
 ## Run on VPS
 
 From the repository root:
 
 ```bash
-docker compose --env-file .env -f deploy/docker-compose.yml up -d --build
+docker compose --env-file .env -f deploy/docker-compose.yml pull
+docker compose --env-file .env -f deploy/docker-compose.yml up -d
 ```
+
+The VPS downloads the image built by GitHub Actions. It does not compile the
+Go project or retain a Go builder image.
+
+Verify the version embedded in the API image:
+
+```bash
+docker compose --env-file .env -f deploy/docker-compose.yml \
+  run --rm --no-deps api /app/api -version
+```
+
+## Updating
+
+Pull the current deployment files, select the image tag in `.env`, and apply
+the update:
+
+```bash
+git pull --ff-only
+docker compose --env-file .env -f deploy/docker-compose.yml pull
+docker compose --env-file .env -f deploy/docker-compose.yml up -d
+```
+
+Compose recreates the API container when its image changes. PostgreSQL data
+remains in the existing named volume.
+
+## Rollback
+
+Set `RELOHELPER_IMAGE_TAG` in `.env` to the previously working release or
+`sha-<commit>` tag, then run:
+
+```bash
+docker compose --env-file .env -f deploy/docker-compose.yml pull api
+docker compose --env-file .env -f deploy/docker-compose.yml up -d api
+```
+
+This rolls back the API image only. Database migrations are not automatically
+reverted; schema-changing releases require a compatible migration plan and a
+verified backup.
 
 ## Public URLs
 

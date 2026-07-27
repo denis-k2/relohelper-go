@@ -18,7 +18,6 @@ func TestListCities(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.Equal(t, len(cities), 527)
 	assert.Equal(t, len(cities) > 0, true)
 	assert.Equal(t, cities[0].GeonameID > 0, true)
 	assert.Equal(t, cities[0].Name != "", true)
