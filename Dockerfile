@@ -1,13 +1,17 @@
 FROM golang:1.26-alpine AS builder
 WORKDIR /app
 
-RUN apk add --no-cache git
+ARG VERSION=development
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o /out/api ./cmd/api
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -trimpath \
+    -ldflags="-s -w -X github.com/denis-k2/relohelper-go/internal/vcs.buildVersion=${VERSION}" \
+    -o /out/api \
+    ./cmd/api
 
 FROM alpine:3.22
 WORKDIR /app
