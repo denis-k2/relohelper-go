@@ -94,6 +94,12 @@ db/sqlc/check:
 		rm -f $${before} $${after}; \
 		exit $${status}
 
+## db/sqlc/vet: check SQL queries for correctness
+.PHONY: db/sqlc/vet
+db/sqlc/vet:
+	@echo 'Checking sqlc queries...'
+	@sqlc vet
+
 # ==================================================================================== #
 # QUALITY CONTROL
 # ==================================================================================== #
@@ -122,6 +128,7 @@ audit:
 	@golangci-lint run
 	@echo '${YELLOW}===> Checking generated database code...${RESET}'
 	@$(MAKE) db/sqlc/check
+	@$(MAKE) db/sqlc/vet
 	@echo '${YELLOW}===> Running full test suite...${RESET}'
 	@go test -count=1 ./... -args -db-dsn=${RELOHELPER_TEST_DB_DSN}
 
