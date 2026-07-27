@@ -1,4 +1,4 @@
-include .envrc
+-include .envrc
 
 # Formatting variables
 YELLOW := $(shell tput -Txterm setaf 3)
@@ -93,16 +93,16 @@ tidy:
 .PHONY: audit
 audit:
 	@echo '${YELLOW}===> Running code quality checks...${RESET}'
-	-@go mod tidy -diff
-	-@go mod verify
+	@go mod tidy -diff
+	@go mod verify
 	@echo '${YELLOW}===> Running modernize...${RESET}'
-	-@go list ./... | grep -v '/internal/db$$' | xargs modernize -test
+	@go list ./... | grep -v '/internal/db$$' | xargs modernize -test
 	@echo '${YELLOW}===> Running linter...${RESET}'
-	-@golangci-lint run
+	@golangci-lint run
 	@echo '${YELLOW}===> Checking generated database code...${RESET}'
 	@$(MAKE) db/sqlc/check
 	@echo '${YELLOW}===> Running full test suite...${RESET}'
-	-@go test -count=1 ./... -args -db-dsn=${RELOHELPER_TEST_DB_DSN}
+	@go test -count=1 ./... -args -db-dsn=${RELOHELPER_TEST_DB_DSN}
 
 # ==================================================================================== #
 # TESTING
