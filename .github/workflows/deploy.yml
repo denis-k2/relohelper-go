@@ -4,9 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: GHCR image tag to deploy (edge, 0.5.0, or sha-...)
-        required: true
-        default: edge
+        description: GHCR image tag; leave blank for the current main commit SHA
+        required: false
         type: string
 
 permissions:
@@ -25,7 +24,7 @@ jobs:
       name: production
       url: https://relohelper.pro
     env:
-      IMAGE_TAG: ${{ inputs.image_tag }}
+      IMAGE_TAG: ${{ inputs.image_tag || format('sha-{0}', github.sha) }}
       VPS_HOST: ${{ vars.VPS_HOST }}
       VPS_PORT: ${{ vars.VPS_PORT || '22' }}
       VPS_USER: ${{ vars.VPS_USER }}

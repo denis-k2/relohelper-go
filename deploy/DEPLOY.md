@@ -82,8 +82,13 @@ The `Deploy` workflow provides a manually confirmed production deployment:
 1. Open `Actions -> Deploy`.
 2. Select `Run workflow`.
 3. Keep the workflow branch set to `main`.
-4. Enter an image tag such as `edge`, `0.5.0`, or `sha-<commit>`.
+4. Leave the image tag empty to deploy the current `main` commit, or enter a
+   release tag such as `0.5.0`.
 5. Run the workflow.
+
+An empty image tag resolves to `sha-<commit>` for the selected `main` commit.
+This keeps production deployments reproducible by default. Use `edge`
+explicitly only when testing the latest mutable image is intentional.
 
 The workflow updates the repository on the VPS, pulls the selected image,
 starts the Compose stack, waits for `/readyz`, and reports the deployed version.
