@@ -1,5 +1,3 @@
--include .envrc
-
 # Formatting variables
 ifneq ($(TERM),)
 YELLOW := $(shell tput setaf 3 2>/dev/null)
@@ -20,6 +18,10 @@ help:
 confirm:
 	@echo -n 'Are you sure? [y/N] ' && read ans && [ $${ans:-N} = y ]
 
+.PHONY: require/test-db
+require/test-db:
+	@test -n "${RELOHELPER_TEST_DB_DSN}" || (echo 'RELOHELPER_TEST_DB_DSN is required; load .envrc with direnv or run source .envrc' && exit 1)
+
 # ==================================================================================== #
 # DEVELOPMENT
 # ==================================================================================== #
@@ -27,17 +29,17 @@ confirm:
 ## run/api: run the cmd/api application with authentication disabled
 .PHONY: run/api
 run/api:
-	@go run ./cmd/api -db-dsn=${RELOHELPER_DB_DSN} -auth-enabled=false
+	@RELOHELPER_AUTH_ENABLED=false go run ./cmd/api
 
 ## run/api/auth: run the cmd/api application with authentication enabled
 .PHONY: run/api/auth
 run/api/auth:
-	@go run ./cmd/api -db-dsn=${RELOHELPER_DB_DSN} -auth-enabled=true
+	@RELOHELPER_AUTH_ENABLED=true go run ./cmd/api
 
 ## run/api/load: run the cmd/api application for load testing
 .PHONY: run/api/load
 run/api/load:
-	@go run ./cmd/api -db-dsn=${RELOHELPER_DB_DSN} -auth-enabled=false -limiter-enabled=false
+	@RELOHELPER_AUTH_ENABLED=false RELOHELPER_LIMITER_ENABLED=false go run ./cmd/api
 
 ## db/psql: connect to the database using psql
 .PHONY: db/psql
@@ -120,7 +122,7 @@ tidy:
 
 ## audit: run quality control checks (no changes to code)
 .PHONY: audit
-audit:
+audit: require/test-db
 	@echo '${YELLOW}===> Running code quality checks...${RESET}'
 	@go mod tidy -diff
 	@go mod verify
@@ -140,13 +142,13 @@ audit:
 
 ## test: run all tests (fast)
 .PHONY: test
-test:
+test: require/test-db
 	@echo 'Running tests...'
 	@go test -count=1 ./...
 
 ## test/v: run all tests with verbose output and logs at debug level
 .PHONY: test/v
-test/v:
+test/v: require/test-db
 	@echo 'Running tests (verbose)...'
 	@RELOHELPER_TEST_LOGS=true go test -v -count=1 ./...
 

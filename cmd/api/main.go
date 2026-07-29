@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"expvar"
-	"flag"
 	"fmt"
 	"log/slog"
 	"os"
@@ -24,42 +23,6 @@ var (
 	revision = vcs.Revision()
 )
 
-// Configuration settings are read from command-line flags at application startup
-type config struct {
-	port int
-	env  string
-	db   struct {
-		dsn          string
-		maxOpenConns int
-		maxIdleTime  time.Duration
-	}
-	limiter struct {
-		rps     float64
-		burst   int
-		enabled bool
-	}
-	auth struct {
-		enabled bool
-	}
-	metrics struct {
-		port int
-	}
-	batch struct {
-		maxIDs         int
-		maxDetailedIDs int
-	}
-	smtp struct {
-		host     string
-		port     int
-		username string
-		password string
-		sender   string
-	}
-	exchangeRates struct {
-		appID string
-	}
-}
-
 type application struct {
 	config        config
 	logger        *slog.Logger
@@ -78,12 +41,26 @@ func main() {
 }
 
 func run() error {
-	cfg, err := parseFlags()
+	cfg, displayVersion, err := parseConfig(os.Args[1:], os.LookupEnv)
 	if err != nil {
 		return err
 	}
+	if displayVersion {
+		fmt.Printf("Version:\t%s\n", version)
+		fmt.Printf("Revision:\t%s\n", revision)
+		return nil
+	}
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	logger.Info(
+		"configuration loaded",
+		"env", cfg.env,
+		"api_port", cfg.port,
+		"metrics_port", cfg.metrics.port,
+		"auth_enabled", cfg.auth.enabled,
+		"limiter_enabled", cfg.limiter.enabled,
+		"db_max_open_conns", cfg.db.maxOpenConns,
+	)
 
 	db, err := openDB(cfg)
 	if err != nil {
@@ -112,44 +89,6 @@ func run() error {
 	}
 
 	return nil
-}
-
-func parseFlags() (config, error) {
-	var cfg config
-
-	flag.IntVar(&cfg.port, "port", 4000, "API server port")
-	flag.StringVar(&cfg.env, "env", "development", "Environment (development|staging|production|testLogs)")
-
-	flag.StringVar(&cfg.db.dsn, "db-dsn", os.Getenv("RELOHELPER_DB_DSN"), "PostgreSQL DSN")
-	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "PostgreSQL max open connections")
-	flag.DurationVar(&cfg.db.maxIdleTime, "db-max-idle-time", 15*time.Minute, "PostgreSQL max connection idle time")
-
-	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 10, "Rate limiter maximum requests per second")
-	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 20, "Rate limiter maximum burst")
-	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Enable rate limiter")
-	flag.BoolVar(&cfg.auth.enabled, "auth-enabled", true, "Enable authentication and activated-user checks")
-	flag.IntVar(&cfg.metrics.port, "metrics-port", 0, "Dedicated internal Prometheus metrics port; 0 serves /metrics on the main API port")
-	flag.IntVar(&cfg.batch.maxIDs, "batch-max-ids", 100, "Maximum number of unique IDs in batch query parameters")
-	flag.IntVar(&cfg.batch.maxDetailedIDs, "batch-max-detailed-ids", 20, "Maximum number of unique city IDs in batch query when detailed include blocks are requested")
-
-	flag.StringVar(&cfg.smtp.host, "smtp-host", os.Getenv("RELOHELPER_SMTP_HOST"), "SMTP host")
-	flag.IntVar(&cfg.smtp.port, "smtp-port", 25, "SMTP port")
-	flag.StringVar(&cfg.smtp.username, "smtp-username", os.Getenv("RELOHELPER_SMTP_USERNAME"), "SMTP username")
-	flag.StringVar(&cfg.smtp.password, "smtp-password", os.Getenv("RELOHELPER_SMTP_PASSWORD"), "SMTP password")
-	flag.StringVar(&cfg.smtp.sender, "smtp-sender", os.Getenv("RELOHELPER_SMTP_SENDER"), "SMTP sender")
-	flag.StringVar(&cfg.exchangeRates.appID, "exchange-rates-app-id", os.Getenv("RELOHELPER_EXCHANGE_RATES_APP_ID"), "Open Exchange Rates app ID")
-
-	displayVersion := flag.Bool("version", false, "Display version and exit")
-
-	flag.Parse()
-
-	if *displayVersion {
-		fmt.Printf("Version:\t%s\n", version)
-		fmt.Printf("Revision:\t%s\n", revision)
-		os.Exit(0)
-	}
-
-	return cfg, nil
 }
 
 func openDB(cfg config) (*pgxpool.Pool, error) {

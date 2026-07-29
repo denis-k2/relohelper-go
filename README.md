@@ -92,6 +92,12 @@ that `sqlc` was rerun.
 The `internal/data` package remains the domain-facing data layer and maps
 generated query rows into API/domain models.
 
+## Configuration
+
+The API is configured through `RELOHELPER_*` environment variables. See
+[docs/configuration.md](./docs/configuration.md) for defaults, validation rules,
+and local and production examples.
+
 ## VPS Deploy with Docker Compose and Caddy
 
 For production-like deployment on an Ubuntu VPS, use the dedicated deploy stack.
@@ -125,7 +131,7 @@ docker compose --env-file .env -f deploy/docker-compose.yml up -d
 
 - Local development:
   - PostgreSQL separately
-  - API via `go run`
+  - API via `make run/api`
   - monitoring via `monitoring/docker-compose.yml` when needed
 - VPS / production-like deploy:
   - `deploy/docker-compose.yml`

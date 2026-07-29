@@ -1,0 +1,7 @@
+export RELOHELPER_DB_DSN='postgres://app_user:app_password@localhost/app_db?sslmode=disable'
+export RELOHELPER_TEST_DB_DSN='postgres://test_user:test_password@localhost:5431/test_db?sslmode=disable'
+export RELOHELPER_AUTH_ENABLED=false
+
+# Optional integrations:
+# export RELOHELPER_EXCHANGE_RATES_APP_ID=''
+# export RELOHELPER_SMTP_SENDER='Relohelper <no-reply@relohelper.local>'

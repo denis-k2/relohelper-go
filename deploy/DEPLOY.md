@@ -48,14 +48,13 @@ Fill in at least:
 - `POSTGRES_USER`
 - `POSTGRES_PASSWORD`
 - `RELOHELPER_IMAGE_TAG`
-- `RELOHELPER_DB_MAX_OPEN_CONNS`
-- `RELOHELPER_LIMITER_RPS`
-- `RELOHELPER_LIMITER_BURST`
-- `RELOHELPER_AUTH_ENABLED`
-- `RELOHELPER_LIMITER_ENABLED`
 - `GRAFANA_ADMIN_USER`
 - `GRAFANA_ADMIN_PASSWORD`
 - SMTP settings if email delivery is required
+
+The remaining API variables in `.env.example` are optional runtime tuning.
+See [`docs/configuration.md`](../docs/configuration.md) for defaults and
+validation rules.
 
 Use `edge` only for testing the latest `main` build. For a stable deployment,
 pin `RELOHELPER_IMAGE_TAG` to a release such as `0.5.0` or to an immutable
@@ -246,19 +245,30 @@ Then open locally in your browser:
 - Prometheus retention is limited to:
   - `7d`
   - `1GB`
-- API runtime toggles for VPS deploy are controlled from `.env` and injected into the container command by Docker Compose:
+- API runtime settings for VPS deploy are controlled from `.env` and passed
+  directly into the container environment by Docker Compose:
   - `RELOHELPER_DB_MAX_OPEN_CONNS`
+  - `RELOHELPER_DB_MAX_IDLE_TIME`
   - `RELOHELPER_LIMITER_RPS`
   - `RELOHELPER_LIMITER_BURST`
   - `RELOHELPER_AUTH_ENABLED=true|false`
   - `RELOHELPER_LIMITER_ENABLED=true|false`
+  - `RELOHELPER_BATCH_MAX_IDS`
+  - `RELOHELPER_BATCH_MAX_DETAILED_IDS`
+- Compose also passes matching CLI overrides during the `v0.6.0` transition so
+  the same stack can roll back to `v0.5.0`. Environment variables remain the
+  public configuration interface. Remove these Compose overrides after
+  `v0.6.0` becomes the rollback baseline; remove API flag parsing in a later
+  release.
 - After changing these values, apply them with:
 
 ```bash
 docker compose --env-file .env -f deploy/docker-compose.yml up -d
 ```
 
-Compose will usually recreate only the `api` container when only its command changes. PostgreSQL, Prometheus, Grafana, and Caddy are not rebuilt or restarted unless their own configuration changes.
+Compose will usually recreate only the `api` container when only its
+environment changes. PostgreSQL, Prometheus, Grafana, and Caddy are not rebuilt
+or restarted unless their own configuration changes.
 
 ## Local development remains unchanged
 
@@ -267,5 +277,5 @@ This deploy stack does not replace the existing local workflow.
 For local development, keep using:
 
 - PostgreSQL separately
-- `go run ./cmd/api`
+- `make run/api`
 - `monitoring/docker-compose.yml` when needed
