@@ -31,6 +31,12 @@ func TestHealthcheck(t *testing.T) {
 	var got envelope
 	unmarshalJSON(t, body, &got)
 	assert.Equal(t, got["status"], "available")
+
+	systemInfo, ok := got["system_info"].(map[string]any)
+	assert.Equal(t, ok, true)
+	assert.Equal(t, systemInfo["environment"], any(testApp.config.env))
+	assert.Equal(t, systemInfo["version"], any(version))
+	assert.Equal(t, systemInfo["revision"], any(revision))
 }
 
 func TestHealthcheckSetsRequestID(t *testing.T) {

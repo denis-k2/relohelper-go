@@ -4,9 +4,12 @@ import (
 	"runtime/debug"
 )
 
-var buildVersion string
+var (
+	buildVersion  string
+	buildRevision string
+)
 
-// returns application version set during build from release tag
+// Version returns the application version set at build time.
 func Version() string {
 	if buildVersion != "" {
 		return buildVersion
@@ -15,6 +18,26 @@ func Version() string {
 	bi, ok := debug.ReadBuildInfo()
 	if ok {
 		return bi.Main.Version
+	}
+
+	return ""
+}
+
+// Revision returns the source control revision used to build the application.
+func Revision() string {
+	if buildRevision != "" {
+		return buildRevision
+	}
+
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+
+	for _, setting := range bi.Settings {
+		if setting.Key == "vcs.revision" {
+			return setting.Value
+		}
 	}
 
 	return ""

@@ -20,7 +20,8 @@ import (
 )
 
 var (
-	version = vcs.Version()
+	version  = vcs.Version()
+	revision = vcs.Revision()
 )
 
 // Configuration settings are read from command-line flags at application startup
@@ -93,7 +94,7 @@ func run() error {
 	}()
 	logger.Info("database connection pool established")
 
-	registerMetrics(version, db)
+	registerMetrics(version, revision, db)
 	setDBStatsProvider(db)
 
 	app := &application{
@@ -144,6 +145,7 @@ func parseFlags() (config, error) {
 
 	if *displayVersion {
 		fmt.Printf("Version:\t%s\n", version)
+		fmt.Printf("Revision:\t%s\n", revision)
 		os.Exit(0)
 	}
 
@@ -176,8 +178,9 @@ func openDB(cfg config) (*pgxpool.Pool, error) {
 	return db, nil
 }
 
-func registerMetrics(version string, db *pgxpool.Pool) {
+func registerMetrics(version, revision string, db *pgxpool.Pool) {
 	expvar.NewString("version").Set(version)
+	expvar.NewString("revision").Set(revision)
 
 	expvar.Publish("goroutines", expvar.Func(func() any {
 		return runtime.NumGoroutine()

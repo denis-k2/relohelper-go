@@ -27,6 +27,7 @@ paths:
                 system_info:
                   environment: development
                   version: "0.1.0"
+                  revision: "dac549c11263c62d80ed61036fa4a1153e593358"
         "422":
           description: Invalid query parameters.
           content:
@@ -663,12 +664,15 @@ components:
           type: string
         system_info:
           type: object
-          required: [environment, version]
+          required: [environment, version, revision]
           properties:
             environment:
               type: string
             version:
               type: string
+            revision:
+              type: string
+              description: Git commit SHA used to build the API.
     CitiesEnvelope:
       type: object
       required: [cities]
