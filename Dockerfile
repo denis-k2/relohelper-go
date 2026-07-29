@@ -2,6 +2,7 @@ FROM golang:1.26-alpine AS builder
 WORKDIR /app
 
 ARG VERSION=development
+ARG REVISION=unknown
 
 COPY go.mod go.sum ./
 RUN go mod download
@@ -9,7 +10,9 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -trimpath \
-    -ldflags="-s -w -X github.com/denis-k2/relohelper-go/internal/vcs.buildVersion=${VERSION}" \
+    -ldflags="-s -w \
+      -X github.com/denis-k2/relohelper-go/internal/vcs.buildVersion=${VERSION} \
+      -X github.com/denis-k2/relohelper-go/internal/vcs.buildRevision=${REVISION}" \
     -o /out/api \
     ./cmd/api
 

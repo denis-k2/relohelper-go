@@ -1,8 +1,10 @@
 -include .envrc
 
 # Formatting variables
-YELLOW := $(shell tput -Txterm setaf 3)
-RESET  := $(shell tput sgr0)
+ifneq ($(TERM),)
+YELLOW := $(shell tput setaf 3 2>/dev/null)
+RESET  := $(shell tput sgr0 2>/dev/null)
+endif
 
 # ==================================================================================== #
 # HELPERS
@@ -130,7 +132,7 @@ audit:
 	@$(MAKE) db/sqlc/check
 	@$(MAKE) db/sqlc/vet
 	@echo '${YELLOW}===> Running full test suite...${RESET}'
-	@go test -count=1 ./... -args -db-dsn=${RELOHELPER_TEST_DB_DSN}
+	@go test -count=1 ./...
 
 # ==================================================================================== #
 # TESTING
@@ -140,13 +142,13 @@ audit:
 .PHONY: test
 test:
 	@echo 'Running tests...'
-	@go test -count=1 ./... -args -db-dsn=${RELOHELPER_TEST_DB_DSN}
+	@go test -count=1 ./...
 
 ## test/v: run all tests with verbose output and logs at debug level
 .PHONY: test/v
 test/v:
 	@echo 'Running tests (verbose)...'
-	@go test -v -count=1 ./... -args -db-dsn=${RELOHELPER_TEST_DB_DSN} -env testLogs
+	@RELOHELPER_TEST_LOGS=true go test -v -count=1 ./...
 
 # ==================================================================================== #
 # BUILD

@@ -91,7 +91,7 @@ This keeps production deployments reproducible by default. Use `edge`
 explicitly only when testing the latest mutable image is intentional.
 
 The workflow updates the repository on the VPS, pulls the selected image,
-starts the Compose stack, waits for `/readyz`, and reports the deployed version.
+starts the Compose stack, waits for `/readyz`, and reports the deployed version and revision.
 It does not automatically roll back database migrations.
 
 Configure these repository or `production` environment variables in
@@ -139,7 +139,7 @@ docker compose --env-file .env -f deploy/docker-compose.yml up -d
 The VPS downloads the image built by GitHub Actions. It does not compile the
 Go project or retain a Go builder image.
 
-Verify the version embedded in the API image:
+Verify the version and source revision embedded in the API image:
 
 ```bash
 docker compose --env-file .env -f deploy/docker-compose.yml \
