@@ -45,6 +45,9 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
+	if os.Getenv("RELOHELPER_TEST_LOGS") == "true" {
+		testCfg.env = "testLogs"
+	}
 	configureTestLogger(testCfg.env)
 
 	// Override DSN to ensure tests use the test database.
