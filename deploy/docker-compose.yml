@@ -75,23 +75,40 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
+      RELOHELPER_ENV: production
+      RELOHELPER_PORT: 4000
       RELOHELPER_DB_DSN: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      RELOHELPER_DB_MAX_OPEN_CONNS: ${RELOHELPER_DB_MAX_OPEN_CONNS:-25}
+      RELOHELPER_DB_MAX_IDLE_TIME: ${RELOHELPER_DB_MAX_IDLE_TIME:-15m}
+      RELOHELPER_LIMITER_RPS: ${RELOHELPER_LIMITER_RPS:-10}
+      RELOHELPER_LIMITER_BURST: ${RELOHELPER_LIMITER_BURST:-20}
+      RELOHELPER_LIMITER_ENABLED: ${RELOHELPER_LIMITER_ENABLED:-true}
+      RELOHELPER_AUTH_ENABLED: ${RELOHELPER_AUTH_ENABLED:-true}
+      RELOHELPER_METRICS_PORT: 4001
+      RELOHELPER_BATCH_MAX_IDS: ${RELOHELPER_BATCH_MAX_IDS:-100}
+      RELOHELPER_BATCH_MAX_DETAILED_IDS: ${RELOHELPER_BATCH_MAX_DETAILED_IDS:-20}
       RELOHELPER_EXCHANGE_RATES_APP_ID: ${RELOHELPER_EXCHANGE_RATES_APP_ID:-}
       RELOHELPER_SMTP_HOST: ${RELOHELPER_SMTP_HOST:-}
       RELOHELPER_SMTP_PORT: ${RELOHELPER_SMTP_PORT:-25}
       RELOHELPER_SMTP_USERNAME: ${RELOHELPER_SMTP_USERNAME:-}
       RELOHELPER_SMTP_PASSWORD: ${RELOHELPER_SMTP_PASSWORD:-}
       RELOHELPER_SMTP_SENDER: ${RELOHELPER_SMTP_SENDER:-Relohelper <no-reply@relohelper.local>}
+    # Keep CLI overrides through v0.6.0 so the stack can roll back to v0.5.0.
     command:
       [
         "/app/api",
         "-env=production",
+        "-port=4000",
         "-db-max-open-conns=${RELOHELPER_DB_MAX_OPEN_CONNS:-25}",
+        "-db-max-idle-time=${RELOHELPER_DB_MAX_IDLE_TIME:-15m}",
         "-limiter-rps=${RELOHELPER_LIMITER_RPS:-10}",
         "-limiter-burst=${RELOHELPER_LIMITER_BURST:-20}",
-        "-metrics-port=4001",
-        "-auth-enabled=${RELOHELPER_AUTH_ENABLED:-true}",
         "-limiter-enabled=${RELOHELPER_LIMITER_ENABLED:-true}",
+        "-auth-enabled=${RELOHELPER_AUTH_ENABLED:-true}",
+        "-metrics-port=4001",
+        "-batch-max-ids=${RELOHELPER_BATCH_MAX_IDS:-100}",
+        "-batch-max-detailed-ids=${RELOHELPER_BATCH_MAX_DETAILED_IDS:-20}",
+        "-smtp-port=${RELOHELPER_SMTP_PORT:-25}",
       ]
     expose:
       - "4000"

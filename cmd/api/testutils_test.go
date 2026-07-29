@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -39,9 +40,21 @@ func configureTestLogger(env string) {
 }
 
 func TestMain(m *testing.M) {
-	testCfg, err := parseFlags()
+	testDSN := os.Getenv("RELOHELPER_TEST_DB_DSN")
+	if testDSN == "" {
+		fmt.Fprintln(os.Stderr, "RELOHELPER_TEST_DB_DSN is required")
+		os.Exit(1)
+	}
+
+	testCfg, err := loadConfig(func(name string) (string, bool) {
+		if name == "RELOHELPER_DB_DSN" {
+			return testDSN, testDSN != ""
+		}
+		return os.LookupEnv(name)
+	})
 	if err != nil {
-		logger.Error("failed to parse flags", "error", err)
+		configureTestLogger("")
+		logger.Error("failed to load test configuration", "error", err)
 		os.Exit(1)
 	}
 
@@ -50,8 +63,6 @@ func TestMain(m *testing.M) {
 	}
 	configureTestLogger(testCfg.env)
 
-	// Override DSN to ensure tests use the test database.
-	testCfg.db.dsn = os.Getenv("RELOHELPER_TEST_DB_DSN")
 	testApp, testDB, err = newTestApplication(testCfg)
 	if err != nil {
 		logger.Error("failed to initialize application", "error", err)
